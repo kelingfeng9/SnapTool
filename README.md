@@ -5,7 +5,11 @@
 
 当前版本:**v1.4.0**(2026-10-14)
 
-**Mac 版开发预览**：原生 Swift / AppKit 菜单栏应用，目标 Apple 芯片、macOS 14 及更新版本。形状截图、标注、贴图、快捷键设置和本地 OCR 的代码位于 [`macos/`](macos/README.md)，使用独立的 Mac 构建与测试流程。预览版的编译和实机验证状态以 Mac 使用说明及 Release 为准。
+**Mac 版 v1.0.0 开发预览**：支持 Apple 芯片、macOS 14 及更新版本，使用原生 Swift / AppKit 菜单栏应用。已移植形状截图、标注编辑、贴图、快捷键设置、取色、延迟截图和本地 OCR。
+
+[下载 Mac 安装 ZIP（约 621 KiB）](https://github.com/kelingfeng9/SnapTool/releases/download/mac-v1.0.0-preview.1/SnapTool-macOS-1.0.0-arm64.zip) · [Mac 安装与使用说明](macos/README.md) · [Mac 预览版 Release](https://github.com/kelingfeng9/SnapTool/releases/tag/mac-v1.0.0-preview.1)
+
+[Apple 芯片 CI](https://github.com/kelingfeng9/SnapTool/actions/runs/38513370395) 已通过 36 项测试、Release 编译、应用完整性检查和启动检查。预览包使用 ad-hoc 签名，尚未进行 Apple 公证；屏幕授权、多显示器与完整截图交互仍需实机验证。
 
 ## ✨ 功能
 - **形状截图**：矩形默认、圆形第二；另有三角形、五边形、六边形和自由多边形。顶部独立选择形状，PNG 保留选区外透明背景。
