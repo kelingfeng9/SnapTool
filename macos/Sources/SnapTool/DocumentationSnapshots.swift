@@ -6,6 +6,7 @@ import SnapCore
 @MainActor
 enum DocumentationSnapshots {
     static func write(to directory: URL) async throws {
+        FileHandle.standardError.write(Data("Native documentation: start\n".utf8))
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         NSApp.appearance = NSAppearance(named: .aqua)
         let size = CGSize(width: 1280, height: 760)
@@ -21,12 +22,15 @@ enum DocumentationSnapshots {
             }
             text("演示背景 · 不含真实桌面内容", at: CGPoint(x: 100, y: 700), size: 15)
         }
+        FileHandle.standardError.write(Data("Native documentation: generated desktop\n".utf8))
         let origin = NSScreen.main?.frame.origin ?? .zero
         let frame = CGRect(origin: origin, size: size)
         let captured = DesktopCapture(image: desktop, frame: frame, scale: 1, windows: [])
         let preferences = Preferences(defaults: UserDefaults(suiteName: "SnapTool.Documentation")!)
         let session = CaptureSession(capture: captured, preferences: preferences, displayFrames: [frame])
+        FileHandle.standardError.write(Data("Native documentation: session initialized\n".utf8))
         session.makeKeyAndOrderFront(nil)
+        FileHandle.standardError.write(Data("Native documentation: session shown\n".utf8))
         session.canvas.appearance = NSAppearance(named: .aqua)
         session.canvas.loadDocumentationExample(selection: CGRect(x: 90, y: 125, width: 1100, height: 495), annotations: [
             Annotation(tool: .rectangle, start: CGPoint(x: 106, y: 255), end: CGPoint(x: 490, y: 310), color: .init(red: 1, green: 0, blue: 0), width: 4),
@@ -36,6 +40,7 @@ enum DocumentationSnapshots {
             Annotation(tool: .mosaic, start: CGPoint(x: 345, y: 476), end: CGPoint(x: 560, y: 520), blockSize: 16)
         ])
         try await Task.sleep(nanoseconds: 200_000_000)
+        FileHandle.standardError.write(Data("Native documentation: save capture begin\n".utf8))
         try save(view: session.windows[0].viewport, to: directory.appendingPathComponent("mac-capture.png"))
         session.close()
 

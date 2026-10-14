@@ -120,10 +120,28 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/documentation
-          "$APP_DIRECTORY/Contents/MacOS/SnapTool" --documentation-snapshots "$PWD/build/documentation" > build/documentation.log 2>&1
+          "$APP_DIRECTORY/Contents/MacOS/SnapTool" --documentation-snapshots "$PWD/build/documentation" > build/documentation.log 2>&1 &
+          RENDER_PID=$!
+          trap 'kill "$RENDER_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if ! kill -0 "$RENDER_PID" 2>/dev/null; then
+              wait "$RENDER_PID"
+              trap - EXIT
+              cat build/documentation.log
+              break
+            fi
+            sleep 1
+          done
+          if kill -0 "$RENDER_PID" 2>/dev/null; then
+            kill "$RENDER_PID" 2>/dev/null || true
+            cat build/documentation.log
+            echo 'Native documentation render timed out.'
+            exit 1
+          fi
           test "$(find build/documentation -name '*.png' | wc -l | tr -d ' ')" -eq 5
 
       - name: Upload native documentation examples
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: SnapTool-macOS-documentation-${{ github.sha }}

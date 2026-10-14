@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if CommandLine.arguments.contains("--documentation-snapshots") || CommandLine.arguments.contains("--smoke-test") { return false }
         beginCapture()
         return false
     }
