@@ -21,12 +21,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     init(preferences: Preferences, hotKeyManager: HotKeyManager) {
         self.preferences = preferences
         self.hotKeyManager = hotKeyManager
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 420), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 460), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "SnapTool 设置"
         window.isReleasedWhenClosed = false
+        window.contentMinSize = NSSize(width: 540, height: 460)
+        let content = NSView(frame: NSRect(origin: .zero, size: window.contentLayoutRect.size))
+        window.contentView = content
         super.init(window: window)
         window.delegate = self
-        buildInterface()
+        buildInterface(in: content)
         loadValues()
         window.center()
     }
@@ -34,36 +37,60 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func showWindow(_ sender: Any?) {
-        loadValues()
+        guard let window else { return }
+        // Bringing an existing window forward should preserve edits and active recording.
+        if !window.isVisible && !window.isMiniaturized { loadValues() }
+        if window.isMiniaturized { window.deminiaturize(sender) }
+        if window.collectionBehavior.contains(.canJoinAllSpaces) {
+            window.collectionBehavior.remove(.moveToActiveSpace)
+        } else { window.collectionBehavior.insert(.moveToActiveSpace) }
+        positionOnCurrentDisplay(window)
         super.showWindow(sender)
         NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(sender)
+        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(sender)
+        window.contentView?.layoutSubtreeIfNeeded()
+        synchronizeColorPanelLevel()
     }
 
-    private func buildInterface() {
-        guard let content = window?.contentView else { return }
+    private func positionOnCurrentDisplay(_ window: NSWindow) {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        var frame = window.frame
+        if !screen.frame.intersects(frame) {
+            frame.origin = NSPoint(x: visible.midX - frame.width / 2, y: visible.midY - frame.height / 2)
+        }
+        frame.origin.x = frame.width <= visible.width ? min(max(frame.minX, visible.minX), visible.maxX - frame.width) : visible.minX
+        frame.origin.y = frame.height <= visible.height ? min(max(frame.minY, visible.minY), visible.maxY - frame.height) : visible.maxY - frame.height
+        window.setFrameOrigin(frame.origin)
+    }
+
+    private func buildInterface(in content: NSView) {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 15
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24)])
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24), stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20)])
 
         let heading = NSTextField(labelWithString: "快捷键与截图偏好")
         heading.font = .boldSystemFont(ofSize: 17)
         stack.addArrangedSubview(heading)
         shortcutField.placeholderString = "Ctrl+Option+A"
+        shortcutField.identifier = NSUserInterfaceItemIdentifier("settings.shortcut")
         shortcutField.setAccessibilityLabel("全局截图快捷键")
         shortcutField.widthAnchor.constraint(equalToConstant: 240).isActive = true
         recordButton.target = self
         recordButton.action = #selector(toggleRecording)
+        recordButton.identifier = NSUserInterfaceItemIdentifier("settings.record")
         let shortcutRow = NSStackView(views: [NSTextField(labelWithString: "截图快捷键"), shortcutField, recordButton])
         shortcutRow.spacing = 10
         stack.addArrangedSubview(shortcutRow)
         let hint = NSTextField(wrappingLabelWithString: "可直接输入组合键，或点击录制。保存成功后新键立即生效；发生冲突时保留原键。至少包含 ⌃ / ⌥ / ⌘ 之一。")
         hint.textColor = .secondaryLabelColor
         hint.font = .systemFont(ofSize: 12)
+        hint.maximumNumberOfLines = 3
         hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         stack.addArrangedSubview(hint)
 
@@ -72,13 +99,19 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         languageChoices += supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
         languageChoices.forEach { languagePopup.addItem(withTitle: $0.0) }
         languagePopup.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        languagePopup.target = self
+        languagePopup.action = #selector(markPendingChanges)
         let languageRow = NSStackView(views: [NSTextField(labelWithString: "文字识别语言"), languagePopup])
         languageRow.spacing = 18
         stack.addArrangedSubview(languageRow)
+        recognizePinned.target = self
+        recognizePinned.action = #selector(markPendingChanges)
         stack.addArrangedSubview(recognizePinned)
 
         colorWell.widthAnchor.constraint(equalToConstant: 50).isActive = true
         colorWell.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        colorWell.target = self
+        colorWell.action = #selector(markPendingChanges)
         widthSlider.widthAnchor.constraint(equalToConstant: 180).isActive = true
         widthSlider.numberOfTickMarks = 24
         widthSlider.allowsTickMarkValuesOnly = true
@@ -95,11 +128,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         loginRow.spacing = 18
         stack.addArrangedSubview(loginRow)
         statusLabel.font = .systemFont(ofSize: 12)
+        statusLabel.identifier = NSUserInterfaceItemIdentifier("settings.status")
+        statusLabel.maximumNumberOfLines = 3
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         statusLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: 34).isActive = true
         stack.addArrangedSubview(statusLabel)
         let save = NSButton(title: "保存设置", target: self, action: #selector(saveSettings))
+        save.identifier = NSUserInterfaceItemIdentifier("settings.save")
         save.keyEquivalent = "\r"
         stack.addArrangedSubview(save)
     }
@@ -176,6 +212,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func widthChanged() { widthLabel.stringValue = "\(Int(widthSlider.doubleValue)) pt" }
+    @objc private func markPendingChanges() { showStatus("更改尚未保存，请点击“保存设置”应用。", isError: false) }
 
     @objc private func loginChanged() {
         do {
@@ -197,9 +234,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func openLoginSettings() { SMAppService.openSystemSettingsLoginItems() }
-    private func showStatus(_ text: String, isError: Bool) { statusLabel.stringValue = text; statusLabel.textColor = isError ? .systemRed : .secondaryLabelColor }
+    private func showStatus(_ text: String, isError: Bool) { statusLabel.stringValue = text; statusLabel.toolTip = text; statusLabel.textColor = isError ? .systemRed : .secondaryLabelColor }
     func synchronizeColorPanelLevel() { colorWell.synchronizePanelLevel() }
-    func windowDidBecomeKey(_ notification: Notification) { synchronizeColorPanelLevel() }
+    func windowDidBecomeKey(_ notification: Notification) { refreshLoginState(); synchronizeColorPanelLevel() }
     func windowWillClose(_ notification: Notification) {
         stopRecording(restore: true)
         if colorWell.isActive {

@@ -125,6 +125,69 @@ final class ShapeGeometryTests: XCTestCase {
         XCTAssertEqual(circle, CGPoint(x: 30, y: 30))
     }
 
+    func testCircleCaptureAtEdgeKeepsOriginalDragAnchor() {
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let start = CGPoint(x: 95, y: 95)
+        let circle = ShapeGeometry.captureSelection(start: start, end: CGPoint(x: 100, y: 60),
+                                                      shape: .circle, within: bounds)
+        XCTAssertEqual(circle, CGRect(x: 95, y: 90, width: 5, height: 5))
+        XCTAssertEqual(CGPoint(x: circle.minX, y: circle.maxY), start)
+        XCTAssertEqual(circle.width, circle.height)
+        XCTAssertTrue(bounds.contains(circle))
+    }
+
+    func testShiftRectangleCaptureFitsAllQuadrantsWithoutRecentering() {
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let start = CGPoint(x: 30, y: 40)
+        let fixtures: [(CGPoint, CGRect)] = [
+            (CGPoint(x: 200, y: 80), CGRect(x: 30, y: 40, width: 60, height: 60)),
+            (CGPoint(x: -100, y: 100), CGRect(x: 0, y: 40, width: 30, height: 30)),
+            (CGPoint(x: 100, y: -100), CGRect(x: 30, y: 0, width: 40, height: 40)),
+            (CGPoint(x: -100, y: -100), CGRect(x: 0, y: 10, width: 30, height: 30))
+        ]
+        for (end, expected) in fixtures {
+            let rect = ShapeGeometry.captureSelection(start: start, end: end, shape: .rectangle,
+                                                       within: bounds, constrain: true)
+            XCTAssertEqual(rect, expected)
+            XCTAssertEqual(rect.width, rect.height)
+            XCTAssertTrue(bounds.contains(rect))
+            XCTAssertTrue([rect.minX, rect.maxX].contains(start.x))
+            XCTAssertTrue([rect.minY, rect.maxY].contains(start.y))
+        }
+    }
+
+    func testCaptureZeroDeltaAxesHaveDeterministicDirections() {
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let start = CGPoint(x: 30, y: 40)
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: start, end: CGPoint(x: 30, y: 10),
+                                                         shape: .circle, within: bounds),
+                       CGRect(x: 30, y: 10, width: 30, height: 30))
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: start, end: CGPoint(x: 10, y: 40),
+                                                         shape: .circle, within: bounds),
+                       CGRect(x: 10, y: 40, width: 20, height: 20))
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: start, end: start,
+                                                         shape: .circle, within: bounds),
+                       CGRect(origin: start, size: .zero))
+        let rightEdge = CGPoint(x: 100, y: 40)
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: rightEdge, end: CGPoint(x: 100, y: 10),
+                                                         shape: .circle, within: bounds),
+                       CGRect(origin: rightEdge, size: .zero))
+    }
+
+    func testUnconstrainedRectanglePreservesIndependentDimensionsAndBounds() {
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: CGPoint(x: 95, y: 95), end: CGPoint(x: 130, y: 60),
+                                                         shape: .rectangle, within: bounds),
+                       CGRect(x: 95, y: 60, width: 5, height: 35))
+        XCTAssertEqual(ShapeGeometry.captureSelection(start: CGPoint(x: 5, y: 10), end: CGPoint(x: -100, y: -100),
+                                                         shape: .triangle, within: bounds),
+                       CGRect(x: 0, y: 0, width: 5, height: 10))
+        let edgeClick = ShapeGeometry.captureSelection(start: CGPoint(x: 100, y: 100), end: CGPoint(x: 120, y: 130),
+                                                          shape: .rectangle, within: bounds)
+        XCTAssertEqual(edgeClick, CGRect(x: 100, y: 100, width: 0, height: 0))
+        XCTAssertFalse(edgeClick.isNull)
+    }
+
     func testOutlineHitTestingDoesNotSelectInteriorUntilFilled() {
         var rectangle = Annotation(tool: .rectangle, start: CGPoint(x: 10, y: 10), end: CGPoint(x: 80, y: 60))
         XCTAssertTrue(AnnotationGeometry.hitTest(CGPoint(x: 11, y: 30), annotation: rectangle))

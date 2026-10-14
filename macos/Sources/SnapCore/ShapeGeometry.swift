@@ -68,6 +68,28 @@ public enum ShapeGeometry {
                        enabled: enabled || shape == .circle)
     }
 
+    /// Creates a selection within the desktop while preserving the drag anchor.
+    /// Circle and Shift-constrained captures stay square even near the bounds;
+    /// clipping a square and subsequently recentering it would move the anchor.
+    /// A zero delta on an axis uses its positive direction, matching
+    /// constrainedCaptureEnd rather than producing a zero-width constraint.
+    public static func captureSelection(start: CGPoint, end: CGPoint, shape: CaptureShape,
+                                         within bounds: CGRect, constrain: Bool = false) -> CGRect {
+        let bounds = bounds.standardized
+        let anchor = CGPoint(x: clamp(start.x, bounds.minX, bounds.maxX),
+                             y: clamp(start.y, bounds.minY, bounds.maxY))
+        guard shape == .circle || constrain else {
+            return normalized(start: anchor, end: end).intersection(bounds)
+        }
+        let dx = end.x - anchor.x, dy = end.y - anchor.y
+        let sx: CGFloat = dx < 0 ? -1 : 1
+        let sy: CGFloat = dy < 0 ? -1 : 1
+        let availableX = sx > 0 ? bounds.maxX - anchor.x : anchor.x - bounds.minX
+        let availableY = sy > 0 ? bounds.maxY - anchor.y : anchor.y - bounds.minY
+        let side = max(0, min(max(abs(dx), abs(dy)), min(availableX, availableY)))
+        return normalized(start: anchor, end: CGPoint(x: anchor.x + sx * side, y: anchor.y + sy * side))
+    }
+
     public static func move(selection: CGRect, by delta: CGPoint, within bounds: CGRect) -> CGRect {
         let selection = selection.standardized
         let bounds = bounds.standardized

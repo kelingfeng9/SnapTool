@@ -32,7 +32,7 @@ final class Preferences {
     var defaultColor: NSColor {
         get {
             guard let values = defaults.array(forKey: "annotationColor") as? [Double], values.count == 4,
-                  values.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1 }) else { return NSColor(srgbRed: 1, green: 0.32, blue: 0.1, alpha: 1) }
+                  values.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1 }) else { return NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1) }
             return NSColor(srgbRed: values[0], green: values[1], blue: values[2], alpha: values[3])
         }
         set {

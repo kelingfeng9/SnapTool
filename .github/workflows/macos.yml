@@ -112,6 +112,23 @@ jobs:
           retention-days: 30
           compression-level: 0
 
+      - name: Render native documentation examples
+        env:
+          APP_DIRECTORY: ${{ steps.validate.outputs.app_path }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/documentation
+          "$APP_DIRECTORY/Contents/MacOS/SnapTool" --documentation-snapshots "$PWD/build/documentation" > build/documentation.log 2>&1
+          test "$(find build/documentation -name '*.png' | wc -l | tr -d ' ')" -eq 5
+
+      - name: Upload native documentation examples
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapTool-macOS-documentation-${{ github.sha }}
+          path: macos/build/documentation/*.png
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload test and build logs
         if: always()
         uses: actions/upload-artifact@v4

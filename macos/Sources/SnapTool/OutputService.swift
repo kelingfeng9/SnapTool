@@ -16,8 +16,17 @@ enum OutputServiceError: LocalizedError {
 @MainActor
 enum OutputService {
     private static let directoryKey = "SnapTool.lastSaveDirectory"
+    private static let formatKey = "SnapTool.lastSaveFormat"
 
     static func copy(_ image: CGImage) throws {
+        let item = try clipboardItem(image)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects([item]) else { throw OutputServiceError.clipboardFailed }
+    }
+
+    /// Build lossless clipboard payloads before changing the user's clipboard.
+    static func clipboardItem(_ image: CGImage) throws -> NSPasteboardItem {
         let representation = NSBitmapImageRep(cgImage: image)
         guard let png = representation.representation(using: .png, properties: [:]),
               let tiff = representation.representation(using: .tiff, properties: [:]) else {
@@ -26,9 +35,7 @@ enum OutputService {
         let item = NSPasteboardItem()
         item.setData(png, forType: .png)
         item.setData(tiff, forType: .tiff)
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        guard pasteboard.writeObjects([item]) else { throw OutputServiceError.clipboardFailed }
+        return item
     }
 
     static func copyText(_ value: String) {
@@ -43,33 +50,40 @@ enum OutputService {
 
     @discardableResult
     static func save(_ image: CGImage, parent: NSWindow? = nil) async throws -> URL? {
+        try Task.checkCancellation()
+        let initialFormat = rememberedFormat()
         let panel = NSSavePanel()
         panel.title = "保存截图"
         panel.prompt = "保存"
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
-        panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = filename(extension: "png")
+        panel.allowedContentTypes = [initialFormat.contentType]
+        panel.allowsOtherFileTypes = false
+        panel.nameFieldStringValue = filename(extension: initialFormat.suffix)
         if let path = UserDefaults.standard.string(forKey: directoryKey),
            FileManager.default.fileExists(atPath: path) {
             panel.directoryURL = URL(fileURLWithPath: path, isDirectory: true)
         } else {
             panel.directoryURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
         }
-        let accessory = SaveFormatAccessory(panel: panel)
+        let accessory = SaveFormatAccessory(panel: panel, initialFormat: initialFormat)
         panel.accessoryView = accessory.view
         NSApplication.shared.activate(ignoringOtherApps: true)
-        let response: NSApplication.ModalResponse = await withCheckedContinuation { continuation in
-            if let parent {
-                panel.beginSheetModal(for: parent) { continuation.resume(returning: $0) }
-            } else {
-                panel.begin { continuation.resume(returning: $0) }
+        let response: NSApplication.ModalResponse = await withTaskCancellationHandler(operation: {
+            await withCheckedContinuation { continuation in
+                if let parent {
+                    panel.beginSheetModal(for: parent) { continuation.resume(returning: $0) }
+                } else {
+                    panel.begin { continuation.resume(returning: $0) }
+                }
             }
-        }
+        }, onCancel: { Task { @MainActor in panel.cancel(nil) } })
+        try Task.checkCancellation()
         guard response == .OK, let url = panel.url else { return nil }
         let data = try encode(image, format: accessory.format)
+        try Task.checkCancellation()
         try data.write(to: url, options: .atomic)
-        UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: directoryKey)
+        rememberSaveLocation(for: url, format: accessory.format)
         return url
     }
 
@@ -100,7 +114,7 @@ enum OutputService {
         return "SnapTool-\(formatter.string(from: Date()))-\(UUID().uuidString.prefix(6)).\(suffix)"
     }
 
-    private static func encode(_ image: CGImage, format: ImageFormat) throws -> Data {
+    static func encode(_ image: CGImage, format: ImageFormat) throws -> Data {
         let source: CGImage
         if format == .png {
             source = image
@@ -128,11 +142,21 @@ enum OutputService {
         return context.makeImage()
     }
 
-    private enum ImageFormat: Int {
+    enum ImageFormat: Int {
         case png, jpeg, bmp
         var suffix: String { ["png", "jpg", "bmp"][rawValue] }
         var contentType: UTType { [.png, .jpeg, .bmp][rawValue] }
         var bitmapType: NSBitmapImageRep.FileType { [.png, .jpeg, .bmp][rawValue] }
+    }
+
+    static func rememberedFormat(in defaults: UserDefaults = .standard) -> ImageFormat {
+        ImageFormat(rawValue: defaults.integer(forKey: formatKey)) ?? .png
+    }
+
+    static func rememberSaveLocation(for url: URL, format: ImageFormat,
+                                    in defaults: UserDefaults = .standard) {
+        defaults.set(url.deletingLastPathComponent().path, forKey: directoryKey)
+        defaults.set(format.rawValue, forKey: formatKey)
     }
 
     @MainActor
@@ -142,7 +166,7 @@ enum OutputService {
         let view: NSView
         var format: ImageFormat { ImageFormat(rawValue: popup.indexOfSelectedItem) ?? .png }
 
-        init(panel: NSSavePanel) {
+        init(panel: NSSavePanel, initialFormat: ImageFormat) {
             self.panel = panel
             let label = NSTextField(labelWithString: "格式：")
             let stack = NSStackView(views: [label, popup])
@@ -152,6 +176,7 @@ enum OutputService {
             view = stack
             super.init()
             popup.addItems(withTitles: ["PNG（保留透明）", "JPEG（白色背景）", "BMP（白色背景）"])
+            popup.selectItem(at: initialFormat.rawValue)
             popup.target = self
             popup.action = #selector(changeFormat)
         }

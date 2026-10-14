@@ -7,16 +7,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotKeys = HotKeyManager()
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
-    private var captureWindow: CaptureWindow?
+    private var captureWindow: CaptureSession?
     private var capturing = false
     private var delayTask: Task<Void, Never>?
     private var ocrTask: Task<Void, Never>?
+    private var captureTask: Task<Void, Never>?
     private var pins: [ObjectIdentifier: PinWindow] = [:]
     private var textWindows: [NSWindow] = []
     private var textWindowObservers: [ObjectIdentifier: NSObjectProtocol] = [:]
     private var lastFrontApplication: NSRunningApplication?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let index = CommandLine.arguments.firstIndex(of: "--documentation-snapshots"), CommandLine.arguments.count > index + 1 {
+            Task {
+                do {
+                    try await DocumentationSnapshots.write(to: URL(fileURLWithPath: CommandLine.arguments[index + 1], isDirectory: true))
+                    NSApp.terminate(nil)
+                } catch {
+                    FileHandle.standardError.write(Data("Native documentation rendering failed: \(error)\n".utf8))
+                    exit(1)
+                }
+            }
+            return
+        }
         configureApplicationMenu()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "viewfinder", accessibilityDescription: "SnapTool")
@@ -31,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showError("快捷键注册失败，可从菜单栏开始截图或修改快捷键。", error)
         }
         rebuildMenu()
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(receiveCaptureRequest(_:)),
+            name: Notification.Name("com.kelingfeng9.SnapTool.capture"), object: nil)
         if CommandLine.arguments.contains("--smoke-test") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { NSApp.terminate(nil) }
         } else if CommandLine.arguments.contains("--capture") {
@@ -46,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         delayTask?.cancel()
         ocrTask?.cancel()
+        captureTask?.cancel()
+        captureWindow?.close()
+        DistributedNotificationCenter.default().removeObserver(self)
         hotKeys.unregister()
     }
 
@@ -124,11 +142,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func captureNow() { beginCapture() }
+    @objc private func receiveCaptureRequest(_ notification: Notification) { beginCapture() }
     @objc private func captureDelayed(_ sender: NSMenuItem) { beginCapture(delay: sender.tag) }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func showAbout() {
         let alert = NSAlert()
-        alert.messageText = "SnapTool for Mac 1.0.0"
+        alert.messageText = "SnapTool for Mac \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.1")"
         alert.informativeText = "轻量菜单栏截图工具\n原生截图、标注、贴图与本地 OCR\n支持 Apple 芯片 · macOS 14 及更新版本"
         presentAlert(alert)
     }
@@ -175,26 +194,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         capturing = true
-        Task { [weak self] in
+        captureTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.capturing = false }
+            defer { self.capturing = false; self.captureTask = nil }
             do {
                 let captured = try await CaptureService.capture()
                 let pinIDs = PinWindow.activeWindowIDs
                 let windows = self.preferences.recognizePinnedWindows ? captured.windows
                     : captured.windows.filter { !pinIDs.contains($0.id) }
                 let capture = DesktopCapture(image: captured.image, frame: captured.frame, scale: captured.scale, windows: windows)
-                let window = CaptureWindow(capture: capture, preferences: self.preferences)
-                window.canvas.onClose = { [weak self] in self?.finishCapture() }
-                window.canvas.onSettings = { [weak self] in self?.openSettings() }
-                window.canvas.onPin = { [weak self] image in self?.openPin(image) }
-                window.canvas.onOCR = { [weak self] image in self?.recognize(image) }
-                self.captureWindow = window
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-                window.makeFirstResponder(window.canvas)
-            } catch { self.showError("无法开始截图", error) }
+                self.presentCapture(capture)
+            } catch is CancellationError { return }
+            catch { self.showError("无法开始截图", error) }
         }
+    }
+
+    func presentCapture(_ capture: DesktopCapture) {
+        let window = CaptureSession(capture: capture, preferences: preferences)
+        window.onDisplaysChanged = { [weak self] in
+            self?.finishCapture()
+            self?.showError("显示器配置发生变化，请重新截图", CaptureServiceError.unavailableDisplay)
+        }
+        window.canvas.onClose = { [weak self] in self?.finishCapture() }
+        window.canvas.onSettings = { [weak self] in self?.openSettings() }
+        window.canvas.onPin = { [weak self] image in self?.openPin(image) }
+        window.canvas.onOCR = { [weak self] image in self?.recognize(image) }
+        captureWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeFirstResponder(window.canvas)
     }
 
     private func restoreStatusIcon() {
@@ -290,10 +318,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configureAuxiliaryWindow(_ window: NSWindow) {
-        if let captureWindow {
-            window.level = NSWindow.Level(rawValue: captureWindow.level.rawValue + 1)
+        if let parent = captureWindow?.activeWindow {
+            window.parent?.removeChildWindow(window)
+            parent.addChildWindow(window, ordered: .above)
+            window.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            let area = parent.frame
+            window.setFrameOrigin(CGPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
         } else {
+            window.parent?.removeChildWindow(window)
             window.level = .normal
             window.collectionBehavior = []
         }
@@ -313,8 +346,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentAlert(_ alert: NSAlert) {
-        if let captureWindow {
-            alert.beginSheetModal(for: captureWindow)
+        if let parent = captureWindow?.activeWindow {
+            alert.beginSheetModal(for: parent)
         } else {
             alert.runModal()
         }

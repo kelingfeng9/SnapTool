@@ -38,14 +38,28 @@ enum CaptureServiceError: LocalizedError {
 
 @MainActor
 enum CaptureService {
+    private struct DisplayGeometry: Equatable {
+        let id: CGDirectDisplayID
+        let frame: CGRect
+        let scale: CGFloat
+    }
+
+    private static func displayGeometry() -> [DisplayGeometry] {
+        NSScreen.screens.compactMap { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+            return DisplayGeometry(id: number.uint32Value, frame: screen.frame, scale: screen.backingScaleFactor)
+        }
+    }
+
     static func capture() async throws -> DesktopCapture {
+        try Task.checkCancellation()
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
             throw CaptureServiceError.permissionDenied
         }
-        let screens = NSScreen.screens
+        let screens = displayGeometry()
         guard let primary = screens.first else { throw CaptureServiceError.noDisplays }
         let desktop = screens.dropFirst().reduce(primary.frame) { $0.union($1.frame) }
-        let scale = screens.map(\.backingScaleFactor).max() ?? 1
+        let scale = screens.map(\.scale).max() ?? 1
         let width = Int(ceil(desktop.width * scale))
         let height = Int(ceil(desktop.height * scale))
         // Bound allocation before multiplying; a 64 MP canvas is already 256 MB.
@@ -56,9 +70,11 @@ enum CaptureService {
         do {
             content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             if !CGPreflightScreenCaptureAccess() { throw CaptureServiceError.permissionDenied }
             throw error
         }
+        try Task.checkCancellation()
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let ownApps = content.applications.filter { $0.processID == ownPID }
         let ownWindows = content.windows.filter { $0.owningApplication?.processID == ownPID }
@@ -75,8 +91,8 @@ enum CaptureService {
 
         // Capture sequentially to avoid simultaneously retaining one extra bitmap per display.
         for screen in screens {
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
-                  let display = content.displays.first(where: { $0.displayID == number.uint32Value }) else {
+            try Task.checkCancellation()
+            guard let display = content.displays.first(where: { $0.displayID == screen.id }) else {
                 throw CaptureServiceError.unavailableDisplay
             }
             let filter: SCContentFilter
@@ -86,17 +102,29 @@ enum CaptureService {
                 filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: pins)
             }
             let configuration = SCStreamConfiguration()
-            configuration.width = Int((screen.frame.width * screen.backingScaleFactor).rounded())
-            configuration.height = Int((screen.frame.height * screen.backingScaleFactor).rounded())
+            configuration.width = Int((screen.frame.width * screen.scale).rounded())
+            configuration.height = Int((screen.frame.height * screen.scale).rounded())
             configuration.showsCursor = false
             configuration.capturesAudio = false
-            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+            let image: CGImage
+            do { image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) }
+            catch {
+                if Task.isCancelled { throw CancellationError() }
+                throw error
+            }
+            try Task.checkCancellation()
             let destination = CGRect(x: (screen.frame.minX - desktop.minX) * scale,
                                      y: (screen.frame.minY - desktop.minY) * scale,
                                      width: screen.frame.width * scale,
                                      height: screen.frame.height * scale)
             context.draw(image, in: destination)
         }
+        let current = displayGeometry()
+        guard current.first?.id == screens.first?.id, current.count == screens.count,
+              screens.allSatisfy({ previous in current.contains(previous) }) else {
+            throw CaptureServiceError.unavailableDisplay
+        }
+        try Task.checkCancellation()
         guard let image = context.makeImage() else { throw CaptureServiceError.imageAllocation }
         let windows = windowTargets(content: content, desktop: desktop, primaryTop: primary.frame.maxY,
                                     excluding: ownPID)
@@ -122,14 +150,18 @@ enum CaptureService {
             guard let id = item[kCGWindowNumber as String] as? NSNumber,
                   let window = candidates[id.uint32Value],
                   ((item[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1) > 0.01 else { continue }
-            let rect = CGRect(x: window.frame.minX - desktop.minX,
-                              y: window.frame.minY + desktop.maxY - primaryTop,
-                              width: window.frame.width, height: window.frame.height).intersection(bounds)
+            let rect = desktopRect(quartzFrame: window.frame, desktop: desktop, primaryTop: primaryTop).intersection(bounds)
             guard !rect.isNull, rect.width >= 20, rect.height >= 20 else { continue }
             let title = pinIDs.contains(window.windowID) ? "SnapTool 贴图"
                 : (window.title?.isEmpty == false ? window.title! : (window.owningApplication?.applicationName ?? "窗口"))
             result.append(WindowTarget(id: window.windowID, rect: rect, title: title))
         }
         return result
+    }
+
+    static func desktopRect(quartzFrame: CGRect, desktop: NSRect, primaryTop: CGFloat) -> CGRect {
+        CGRect(x: quartzFrame.minX - desktop.minX,
+               y: quartzFrame.minY + desktop.maxY - primaryTop,
+               width: quartzFrame.width, height: quartzFrame.height)
     }
 }

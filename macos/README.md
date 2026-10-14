@@ -2,11 +2,11 @@
 
 SnapTool 的原生 macOS 菜单栏版本，面向 **Apple 芯片、macOS 14 及更新版本**。使用 AppKit、ScreenCaptureKit、CoreGraphics 和 Vision；不安装额外运行时，不引入第三方依赖。启动后常驻菜单栏，通过快捷键调取截图。
 
-**当前为 1.0.0 开发预览版。** 每次发布包的验证记录见 [macOS 工作流](https://github.com/kelingfeng9/SnapTool/actions/workflows/macos.yml) 及对应 Release；CI 验证编译、核心单元测试、应用打包和无截图权限的启动。屏幕授权、多显示器与贴图交互仍需要真实 Mac 验证，不能由编译和单元测试代替。
+**当前为 1.0.1 开发预览版。** 每次发布包的验证记录见 [macOS 工作流](https://github.com/kelingfeng9/SnapTool/actions/workflows/macos.yml) 及对应 Release；CI 验证编译、核心单元测试、应用打包和无截图权限的启动。屏幕授权、多显示器与贴图交互仍需要真实 Mac 验证，不能由编译和单元测试代替。
 
 ## 安装与首次启动
 
-1. 在 [Mac 预览版 Release](https://github.com/kelingfeng9/SnapTool/releases/tag/mac-v1.0.0-preview.1) 下载 `SnapTool-macOS-1.0.0-arm64.zip` 并解压。也可以在成功的 macOS 工作流页面下载 `SnapTool-macOS-arm64-…` 构建产物，再解压里面的安装 ZIP。
+1. 在 [Mac 预览版 Release](https://github.com/kelingfeng9/SnapTool/releases/tag/mac-v1.0.1-preview.1) [下载 Mac 安装 ZIP](https://github.com/kelingfeng9/SnapTool/releases/download/mac-v1.0.1-preview.1/SnapTool-macOS-1.0.1-arm64.zip) 并解压。也可以在成功的 macOS 工作流页面下载 `SnapTool-macOS-arm64-…` 构建产物，再解压里面的安装 ZIP。
 2. 将 `SnapTool.app` 拖入 Mac 的“应用程序”文件夹，打开应用。菜单栏会出现取景框图标；应用默认不显示 Dock 图标。
 3. 按 **Control + Option + A（⌃⌥A）**，或点击菜单栏图标中的“开始截图”。首次截图时，按系统提示允许 SnapTool 读取屏幕。
 4. 如系统要求手动授权，进入“系统设置 → 隐私与安全性 → 屏幕录制”（较新 macOS 中名为“屏幕与系统音频录制”），开启 SnapTool，并按提示重新打开应用。
@@ -16,6 +16,8 @@ SnapTool 的原生 macOS 菜单栏版本，面向 **Apple 芯片、macOS 14 及�
 截图权限遵循 Apple 的[屏幕与系统音频录制访问设置](https://support.apple.com/guide/mac-help/control-access-screen-system-audio-recording-mchld6aa7d23/mac)。软件不采集音频；OCR 使用系统 Vision 在本机识别，不上传截图或文字。全局快捷键使用系统注册接口，不需要辅助功能或输入监控权限。
 
 ## 截图与标注
+
+![Mac 原生截图界面与工具栏](../docs/images/mac/mac-capture.png)
 
 调取后默认使用矩形截图，圆形排在第二位。还可以选择三角形、五边形、六边形与自由多边形。拖动框选区域，也可以单击自动识别的窗口；完成选择后拖动选区移动，拖动边缘或角点调整大小。
 
@@ -69,6 +71,10 @@ OCR 识别截图的原始内容，避免将标注笔迹当作文字。结果窗�
 
 设置还包括默认标注颜色、线宽、截图时识别贴图窗口，以及“登录 Mac 时启动”。登录启动使用 macOS 的系统登录项服务；如果需要额外确认，可点击“系统登录项…”查看。请将应用放在“应用程序”中再开启，失败时窗口会显示原因。
 
+![Mac 快捷键、OCR、标注与登录启动设置](../docs/images/mac/mac-settings.png)
+
+更多形状、标注和贴图的操作配图，以及 Windows / Mac 快捷键对照，见 [双端图文使用手册](../README.md)。
+
 ## 从源码构建
 
 在 Mac 上安装 Xcode 或 Xcode Command Line Tools，克隆完整仓库后执行：
@@ -79,7 +85,7 @@ swift test --arch arm64
 bash scripts/build-app.sh
 ```
 
-脚本把构建结果写入 `macos/build`，生成原生 arm64 可执行文件、沿用项目 Logo 的 `.icns` 图标、应用与 ZIP。最终压缩包为 `build/SnapTool-macOS-1.0.0-arm64.zip`，应用位于本次 `build/package.*/package/SnapTool.app` 中。每次构建使用独立暂存目录，保留旧构建文件。
+脚本把构建结果写入 `macos/build`，生成原生 arm64 可执行文件、沿用项目 Logo 的 `.icns` 图标、应用与 ZIP。最终压缩包为 `build/SnapTool-macOS-1.0.1-arm64.zip`，应用位于本次 `build/package.*/package/SnapTool.app` 中。每次构建使用独立暂存目录，保留旧构建文件。
 
 开发者可使用 `bash scripts/build-app.sh --universal` 构建双架构包；本项目当前主要验证 Apple 芯片版本，Intel 兼容性以实际测试为准。源码构建同样采用 ad-hoc 签名。发布给普通用户所需的 Developer ID 签名、公证和正式自动更新尚未配置。
 

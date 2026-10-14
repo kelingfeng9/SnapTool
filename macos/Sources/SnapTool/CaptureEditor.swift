@@ -1,26 +1,6 @@
 import AppKit
 import SnapCore
 
-final class CaptureWindow: NSWindow {
-    let canvas: CaptureCanvas
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    init(capture: DesktopCapture, preferences: Preferences) {
-        canvas = CaptureCanvas(capture: capture, preferences: preferences)
-        super.init(contentRect: capture.frame, styleMask: .borderless, backing: .buffered, defer: false)
-        title = "SnapTool 截图"
-        isReleasedWhenClosed = false
-        isOpaque = true
-        backgroundColor = .black
-        hasShadow = false
-        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        acceptsMouseMovedEvents = true
-        contentView = canvas
-    }
-}
-
 private final class FlowToolbar: NSView {
     var items: [NSView] = []
     override var isFlipped: Bool { true }
@@ -48,6 +28,10 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
     var onSettings: (() -> Void)?
     var onPin: ((CGImage) -> Void)?
     var onOCR: ((CGImage) -> Void)?
+    var onInvalidate: ((CGRect) -> Void)?
+    var onActivateAtPoint: ((CGPoint) -> Void)?
+    var activeViewport: CGRect? { didSet { layoutToolbars(); needsDisplay = true } }
+    let geometry: DesktopGeometry
     private let capture: DesktopCapture
     private let preferences: Preferences
     private let background: NSImage
@@ -60,7 +44,11 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
     private var colorButtons: [NSButton] = []
     private let fillButton = NSButton(checkboxWithTitle: "实心", target: nil, action: nil)
     private let doubleArrowButton = NSButton(checkboxWithTitle: "双向", target: nil, action: nil)
-    private let palette: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .white, .black]
+    private let palette: [NSColor] = [NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1),
+        NSColor(srgbRed: 1, green: 140.0 / 255, blue: 0, alpha: 1),
+        NSColor(srgbRed: 1, green: 215.0 / 255, blue: 0, alpha: 1),
+        NSColor(srgbRed: 50.0 / 255, green: 205.0 / 255, blue: 50.0 / 255, alpha: 1),
+        NSColor(srgbRed: 30.0 / 255, green: 144.0 / 255, blue: 1, alpha: 1), .white, .black]
     private var shape: CaptureShape = .rectangle
     private var tool: AnnotationTool = .rectangle
     private var selection: CGRect = .zero
@@ -90,15 +78,51 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
     private var lastStamp: (id: UUID, point: CGPoint, tool: AnnotationTool, time: TimeInterval)?
     private var tracking: NSTrackingArea?
     private var outputBusy = false
+    private var outputTask: Task<Void, Never>?
+    var isEditingText: Bool { textField != nil }
+    var selectionRect: CGRect { selection }
+    var annotations: [Annotation] { store.items }
+    func loadDocumentationExample(selection: CGRect, shape: CaptureShape = .rectangle, annotations: [Annotation] = []) {
+        reselect()
+        self.shape = shape
+        self.selection = selection
+        polygonClosed = true
+        annotations.forEach { store.add($0) }
+        annotationBar.isHidden = false
+        updateTools(); layoutToolbars(); needsDisplay = true
+    }
+    func prepareToSwitchDisplay() { finishText(commit: true) }
+    func endSession() {
+        finishText(commit: false)
+        toastTimer?.invalidate()
+        toastTimer = nil
+        outputTask?.cancel()
+        outputTask = nil
+        onInvalidate = nil
+        onActivateAtPoint = nil
+        onClose = nil
+        onSettings = nil
+        onPin = nil
+        onOCR = nil
+    }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+    override var needsDisplay: Bool {
+        get { super.needsDisplay }
+        set { super.needsDisplay = newValue; if newValue { onInvalidate?(bounds) } }
+    }
+    override func setNeedsDisplay(_ invalidRect: NSRect) {
+        super.setNeedsDisplay(invalidRect)
+        onInvalidate?(invalidRect)
+    }
     private var polygonDraft: Bool { shape == .polygon && !polygonClosed }
     private var hasSelection: Bool { selection.width > 2 && selection.height > 2 && !polygonDraft }
     private var selected: Annotation? { store.items.first { $0.id == selectedID } }
 
     init(capture: DesktopCapture, preferences: Preferences) {
         self.capture = capture
+        geometry = DesktopGeometry(frame: capture.frame)
         self.preferences = preferences
         background = NSImage(cgImage: capture.image, size: capture.frame.size)
         renderer = AnnotationRenderer(desktop: capture.image, pixelScale: capture.scale)
@@ -106,6 +130,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         color = RGBAColor(red: nsColor.redComponent, green: nsColor.greenComponent, blue: nsColor.blueComponent)
         lineWidth = preferences.defaultLineWidth
         super.init(frame: NSRect(origin: .zero, size: capture.frame.size))
+        clipsToBounds = true
         let mouse = NSEvent.mouseLocation
         pointer = CGPoint(x: min(bounds.width, max(0, mouse.x - capture.frame.minX)),
                           y: min(bounds.height, max(0, capture.frame.maxY - mouse.y)))
@@ -121,9 +146,10 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
 
     private func button(_ title: String, width: CGFloat = 55, action: Selector) -> NSButton {
         let button = NSButton(title: title, target: self, action: action)
-        button.frame.size = NSSize(width: width, height: 28)
         button.font = .systemFont(ofSize: 12)
         button.bezelStyle = .rounded
+        button.sizeToFit()
+        button.frame.size = NSSize(width: max(width, button.frame.width), height: 28)
         return button
     }
     private func label(_ title: String, width: CGFloat) -> NSTextField {
@@ -136,6 +162,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         shapeBar.append(label("截图形状", width: 60))
         for (index, title) in ["矩形", "圆形", "三角形"].enumerated() {
             let item = button(title, action: #selector(selectShape(_:)))
+            item.setButtonType(.pushOnPushOff)
             item.tag = index
             shapeButtons.append(item)
             shapeBar.append(item)
@@ -152,6 +179,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         annotationBar.append(label("标注", width: 32))
         for (index, value) in AnnotationTool.allCases.enumerated() {
             let item = button(value.title, width: 50, action: #selector(selectTool(_:)))
+            item.setButtonType(.pushOnPushOff)
             item.tag = index
             item.toolTip = "\(index == 9 ? 0 : index + 1) · \(value.title)；Shift 约束图形比例或线段角度"
             toolButtons.append(item)
@@ -164,8 +192,9 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
             annotationBar.append(item)
         }
         for (index, nsColor) in palette.enumerated() {
-            let item = button("●", width: 24, action: #selector(selectColor(_:)))
-            item.contentTintColor = nsColor
+            let item = ColorSwatchButton(color: nsColor,
+                name: ["红色", "橙色", "黄色", "绿色", "蓝色", "白色", "黑色"][index],
+                target: self, action: #selector(selectColor(_:)))
             item.tag = index
             colorButtons.append(item)
             annotationBar.append(item)
@@ -184,11 +213,10 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         let screenPoint = NSPoint(x: capture.frame.minX + pointer.x, y: capture.frame.maxY - pointer.y)
         let display = NSScreen.screens.first { $0.frame.contains(screenPoint) } ?? NSScreen.main
         let global = display?.visibleFrame ?? capture.frame
-        let area = CGRect(x: global.minX - capture.frame.minX, y: capture.frame.maxY - global.maxY,
-                          width: global.width, height: global.height).intersection(bounds)
+        let area = (activeViewport ?? geometry.desktopRect(fromAppKit: global)).intersection(bounds)
         let width = max(160, min(720, area.width - 16))
         _ = shapeBar.arrange(width: width)
-        shapeBar.frame.origin = CGPoint(x: max(4, area.midX - width / 2), y: max(4, area.minY + 8))
+        shapeBar.frame.origin = CGPoint(x: max(area.minX + 4, area.midX - width / 2), y: max(area.minY + 4, area.minY + 8))
         let annotationWidth = max(160, min(1250, area.width - 16))
         _ = annotationBar.arrange(width: annotationWidth)
         var y = selection.maxY + 8
@@ -312,8 +340,12 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         return (bytes[0], bytes[1], bytes[2])
     }
     private func hudRect(at point: CGPoint) -> CGRect {
-        CGRect(x: min(max(4, point.x + 22), bounds.width - 202),
-               y: min(max(4, point.y + 22), bounds.height - 94), width: 198, height: 90)
+        let appKitPoint = geometry.appKitPoint(fromDesktop: point)
+        let area = activeViewport.flatMap { $0.contains(point) ? $0 : nil }
+            ?? NSScreen.screens.first(where: { $0.frame.contains(appKitPoint) }).map { geometry.viewport(for: $0.frame) }
+            ?? bounds
+        return CGRect(x: min(max(area.minX + 4, point.x + 22), area.maxX - 202),
+               y: min(max(area.minY + 4, point.y + 22), area.maxY - 94), width: 198, height: 90)
     }
     private func drawPixelHUD(_ context: CGContext) {
         guard let rgb = pixel() else { return }
@@ -339,8 +371,15 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         return items
     }
     private func localPoint(_ event: NSEvent) -> CGPoint {
-        let point = convert(event.locationInWindow, from: nil)
+        let global = event.window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
+        let point = geometry.desktopPoint(fromAppKit: global)
         return CGPoint(x: min(bounds.maxX, max(bounds.minX, point.x)), y: min(bounds.maxY, max(bounds.minY, point.y)))
+    }
+    func activateInput(at point: CGPoint) {
+        finishText(commit: true)
+        pointer = point
+        onActivateAtPoint?(point)
+        layoutToolbars()
     }
     private func invalidatePointer(old: CGPoint) {
         setNeedsDisplay(hudRect(at: old).union(hudRect(at: pointer)).insetBy(dx: -5, dy: -5))
@@ -348,6 +387,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
     override func mouseMoved(with event: NSEvent) {
         let old = pointer
         pointer = localPoint(event)
+        if !isEditingText { onActivateAtPoint?(pointer) }
         invalidatePointer(old: old)
         if polygonDraft {
             if let last = polygon.last { setNeedsDisplay(ShapeGeometry.normalized(start: last, end: old).union(ShapeGeometry.normalized(start: last, end: pointer)).insetBy(dx: -5, dy: -5)) }
@@ -413,9 +453,8 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         invalidatePointer(old: oldPointer)
         if selecting {
             let old = selection
-            let end = ShapeGeometry.constrainedCaptureEnd(start: anchor, end: pointer, shape: shape, enabled: event.modifierFlags.contains(.shift))
-            selection = ShapeGeometry.normalized(start: anchor, end: end).intersection(bounds)
-            if shape == .circle { selection = ShapeGeometry.circleSquare(in: selection) }
+            selection = ShapeGeometry.captureSelection(start: anchor, end: pointer, shape: shape, within: bounds,
+                constrain: event.modifierFlags.contains(.shift))
             setNeedsDisplay(old.union(selection).insetBy(dx: -8, dy: -8))
         } else if movingCrop {
             let old = selection
@@ -478,6 +517,8 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
             }
             pruneCaches(); needsDisplay = true
         }
+        onActivateAtPoint?(pointer)
+        layoutToolbars()
     }
 
     private func transformPolygon(from old: CGRect, to new: CGRect) {
@@ -533,6 +574,13 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         fillButton.isEnabled = activeTool == .rectangle || activeTool == .ellipse
         doubleArrowButton.isEnabled = activeTool == .arrow
         if let selected { fillButton.state = selected.filled ? .on : .off; doubleArrowButton.state = selected.doubleArrow ? .on : .off }
+        let activeColor = selected?.color ?? color
+        for (index, item) in colorButtons.enumerated() {
+            let swatch = palette[index].usingColorSpace(.sRGB)!
+            item.state = abs(swatch.redComponent - activeColor.red) < 0.01
+                && abs(swatch.greenComponent - activeColor.green) < 0.01
+                && abs(swatch.blueComponent - activeColor.blue) < 0.01 ? .on : .off
+        }
     }
     @objc private func selectColor(_ sender: NSButton) {
         finishText(commit: true)
@@ -540,7 +588,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         color = RGBAColor(red: nsColor.redComponent, green: nsColor.greenComponent, blue: nsColor.blueComponent)
         preferences.defaultColor = nsColor
         if let id = selectedID { store.updateStyle(id: id, color: color) }
-        pruneCaches(); needsDisplay = true; window?.makeFirstResponder(self)
+        pruneCaches(); updateTools(); needsDisplay = true; window?.makeFirstResponder(self)
     }
     @objc private func changeStyle() {
         if let id = selectedID { store.updateStyle(id: id, filled: fillButton.state == .on, doubleArrow: doubleArrowButton.state == .on) }
@@ -564,7 +612,11 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
 
     private func beginText(at point: CGPoint) {
         textOrigin = point
-        let field = NSTextField(frame: CGRect(x: min(point.x, bounds.width - 265), y: min(point.y, bounds.height - 42), width: 260, height: max(34, fontSize + 12)))
+        let area = activeViewport ?? bounds
+        let fieldWidth = min(260, area.width - 12)
+        let field = NSTextField(frame: CGRect(x: max(area.minX + 4, min(point.x, area.maxX - fieldWidth - 4)),
+            y: max(area.minY + 4, min(point.y, area.maxY - max(34, fontSize + 12) - 4)),
+            width: fieldWidth, height: max(34, fontSize + 12)))
         field.font = .systemFont(ofSize: fontSize, weight: .bold)
         field.textColor = NSColor(cgColor: color.cgColor) ?? .systemRed
         field.backgroundColor = .white
@@ -636,25 +688,26 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         do {
             let image = try rendered()
             outputBusy = true
-            Task { [weak self] in
+            outputTask = Task { [weak self] in
                 guard let self else { return }
-                defer { self.outputBusy = false }
+                defer { self.outputBusy = false; self.outputTask = nil }
                 do { if try await OutputService.save(image, parent: self.window) != nil { self.onClose?() } }
+                catch is CancellationError { return }
                 catch { self.showFailure(error) }
             }
         } catch { showFailure(error) }
     }
     @objc private func quickSave() {
-        guard hasSelection else { return }
+        guard hasSelection, !outputBusy else { return }
         do { _ = try OutputService.quickSave(rendered()); onClose?() }
         catch { showFailure(error) }
     }
     @objc private func pin() {
-        guard hasSelection else { return }
+        guard hasSelection, !outputBusy else { return }
         do { onPin?(try rendered()) } catch { showFailure(error) }
     }
     @objc private func ocr() {
-        guard hasSelection else { return }
+        guard hasSelection, !outputBusy else { return }
         do { onOCR?(try renderer.render(selection: selection, shape: shape, vertices: polygon, annotations: [])) }
         catch { showFailure(error) }
     }

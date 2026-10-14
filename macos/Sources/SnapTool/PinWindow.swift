@@ -21,6 +21,7 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
+    private var saveTask: Task<Void, Never>?
     private var dragging = false
     private var topmost = true
     private var baseSize: NSSize
@@ -63,11 +64,14 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
         super.showWindow(sender)
         guard let window else { return }
         window.makeKeyAndOrderFront(sender)
+        if let view = window.contentView { window.makeFirstResponder(view) }
         Self.registry[CGWindowID(window.windowNumber)] = WeakPin(self)
         installMouseMonitors()
+        updateClickThrough()
     }
 
     func windowWillClose(_ notification: Notification) {
+        saveTask?.cancel()
         if let window { Self.registry.removeValue(forKey: CGWindowID(window.windowNumber)) }
         removeMouseMonitors()
         onClose?()
@@ -130,16 +134,21 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
         window.setFrame(NSRect(x: mouse.x - anchorX * size.width,
                                y: mouse.y - anchorY * size.height,
                                width: size.width, height: size.height), display: true)
+        updateClickThrough()
     }
 
     @objc fileprivate func copyImage(_ sender: Any?) {
-        do { try OutputService.copy(image) } catch { NSAlert(error: error).runModal() }
+        do { try OutputService.copy(image) } catch { showError(error) }
     }
 
     @objc fileprivate func saveImage(_ sender: Any?) {
-        Task {
-            do { _ = try await OutputService.save(image, parent: window) }
-            catch { NSAlert(error: error).runModal() }
+        guard saveTask == nil else { return }
+        saveTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.saveTask = nil }
+            do { _ = try await OutputService.save(self.image, parent: self.window) }
+            catch is CancellationError { return }
+            catch { self.showError(error) }
         }
     }
 
@@ -155,12 +164,14 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
                                y: frame.midY - baseSize.height / 2,
                                width: baseSize.width, height: baseSize.height), display: true)
         window.alphaValue = 1
+        updateClickThrough()
     }
 
     @objc fileprivate func closePin(_ sender: Any?) { close() }
 
     fileprivate func contextMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = false
         let items: [(String, Selector, String)] = [
             ("复制图片", #selector(copyImage(_:)), "c"),
             ("另存为…", #selector(saveImage(_:)), "s"),
@@ -170,6 +181,7 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
         for (title, action, key) in items {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
             item.target = self
+            if action == #selector(saveImage(_:)) { item.isEnabled = saveTask == nil }
             if action == #selector(toggleTopmost(_:)) {
                 item.state = topmost ? .on : .off
                 item.keyEquivalentModifierMask = []
@@ -182,6 +194,11 @@ final class PinWindow: NSWindowController, NSWindowDelegate {
         menu.addItem(close)
         return menu
     }
+
+    private func showError(_ error: Error) {
+        let alert = NSAlert(error: error)
+        if let window, window.isVisible { alert.beginSheetModal(for: window) }
+    }
 }
 
 private final class PinPanel: NSPanel {
@@ -191,7 +208,7 @@ private final class PinPanel: NSPanel {
 }
 
 @MainActor
-private final class PinImageView: NSView {
+final class PinImageView: NSView {
     weak var owner: PinWindow?
     private let image: NSImage
     private let mask: [UInt8]

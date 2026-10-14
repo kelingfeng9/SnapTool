@@ -13,6 +13,28 @@ enum OCRServiceError: LocalizedError {
 }
 
 enum OCRService {
+    /// Cancellation can arrive from a different task while Vision performs synchronous work.
+    private final class CancellationState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var request: VNRecognizeTextRequest?
+        private var cancelled = false
+
+        func install(_ request: VNRecognizeTextRequest) throws {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !cancelled else { throw CancellationError() }
+            self.request = request
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            let active = request
+            lock.unlock()
+            active?.cancel()
+        }
+    }
+
     static func supportedLanguages() throws -> [String] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
@@ -25,10 +47,13 @@ enum OCRService {
     }
 
     static func recognize(image: CGImage, languages: [String]) async throws -> String {
+        try Task.checkCancellation()
+        let cancellation = CancellationState()
         let task = Task.detached(priority: .userInitiated) {
             try autoreleasepool {
                 try Task.checkCancellation()
                 let request = VNRecognizeTextRequest()
+                try cancellation.install(request)
                 request.recognitionLevel = .accurate
                 request.usesLanguageCorrection = true
                 let supported = try request.supportedRecognitionLanguages()
@@ -47,12 +72,21 @@ enum OCRService {
                     if !preferred.isEmpty { request.recognitionLanguages = preferred }
                 }
                 let handler = VNImageRequestHandler(cgImage: image, orientation: .up, options: [:])
-                try handler.perform([request])
+                do { try handler.perform([request]) }
+                catch {
+                    if Task.isCancelled { throw CancellationError() }
+                    throw error
+                }
                 try Task.checkCancellation()
                 return readingOrder(request.results ?? [])
             }
         }
-        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+        let result = try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: {
+            task.cancel()
+            cancellation.cancel()
+        })
+        try Task.checkCancellation()
+        return result
     }
 
     private struct TextLine {
