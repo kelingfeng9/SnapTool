@@ -1,0 +1,349 @@
+Build OK: <project>\artifacts\RegressionTests.exe
+PASS parse Ctrl+Alt+A
+PASS parse Ctrl+1
+PASS parse Shift+F11
+PASS parse Ctrl+\
+PASS parse Control+Oemplus
+PASS reject Ctrl+Bogus+A
+PASS reject Ctrl++A
+PASS reject Ctrl+Alt
+PASS reject Ctrl+999
+PASS reject Ctrl+-1
+PASS reject Ctrl+LButton
+PASS reject Ctrl+F12
+PASS reject Ctrl+A,B
+PASS reject A
+PASS reject Ctrl+
+PASS digit uses virtual D1 key
+PASS register original hotkey
+PASS reserve conflicting hotkey
+PASS reject occupied hotkey
+PASS original hotkey remains registered after conflict
+PASS saving unchanged hotkey succeeds
+PASS unregister releases hotkey
+PASS legacy hotkey survives unrelated config write
+PASS config writes persist
+PASS duplicate config keys normalized
+PASS unknown-to-operation settings retained
+PASS new fallback overrides stale portable settings on restart
+PASS fallback updates preserve latest values
+PASS unwritable portable target falls back successfully
+PASS atomic saves leave no temporary files
+PASS toolbar fits narrow screen
+PASS wrapped toolbar keeps final action accessible
+PASS text editor owns D1
+PASS text editor owns Back
+PASS text editor owns C, Control
+PASS text editor owns Z, Control
+PASS text editor owns OemOpenBrackets
+PASS Enter commits one text annotation
+PASS text uses click origin even when editor is clamped
+PASS editor and rendered text use pixel units
+PASS changing tool preserves text
+PASS Escape cancels only text entry
+PASS render commits pending text and preserves crop dimensions
+PASS moving crop clamps without shrinking
+PASS right-click resets selection and hides toolbar
+PASS dragging outside screen clips crop
+PASS stroke includes final mouse-up position
+PASS render never allocates offscreen crop area
+PASS annotation toolbar exposes all ten tools
+PASS toolbar position 1 selects Rect
+PASS D1 selects Rect
+PASS toolbar position 2 selects Ellipse
+PASS D2 selects Ellipse
+PASS toolbar position 3 selects Arrow
+PASS D3 selects Arrow
+PASS toolbar position 4 selects Line
+PASS D4 selects Line
+PASS toolbar position 5 selects Pen
+PASS D5 selects Pen
+PASS toolbar position 6 selects Text
+PASS D6 selects Text
+PASS toolbar position 7 selects Mosaic
+PASS D7 selects Mosaic
+PASS toolbar position 8 selects Number
+PASS D8 selects Number
+PASS toolbar position 9 selects Highlight
+PASS D9 selects Highlight
+PASS toolbar position 10 selects Select
+PASS D0 selects Select
+PASS annotation rectangle and circle tools are first and second
+PASS rectangle annotation draws a visible outline
+PASS rectangle annotation leaves its center unfilled
+PASS ellipse annotation draws the curved top edge
+PASS ellipse annotation leaves outside corner and center unfilled
+PASS line annotation draws its midpoint
+PASS line annotation leaves pixels away from the stroke unchanged
+PASS existing arrow annotation still draws its shaft
+PASS arrow annotation includes a visible arrowhead
+PASS existing pen annotation preserves its intermediate stroke point
+PASS existing text annotation renders outlined text pixels
+PASS existing mosaic annotation obscures fine source detail
+PASS mosaic output replaces fine alternating pixels with blocks
+PASS existing numbered marker renders its badge and number
+PASS existing highlight blends translucent color with the screenshot
+PASS annotation rendering never changes the source screenshot
+PASS Rect mouse gesture commits exactly one annotation
+PASS Rect mouse-up preserves the final endpoint
+PASS Ellipse mouse gesture commits exactly one annotation
+PASS Ellipse mouse-up preserves the final endpoint
+PASS Arrow mouse gesture commits exactly one annotation
+PASS Arrow mouse-up preserves the final endpoint
+PASS Line mouse gesture commits exactly one annotation
+PASS Line mouse-up preserves the final endpoint
+PASS Pen mouse gesture commits exactly one annotation
+PASS Pen mouse-up preserves the final endpoint
+PASS Pen stroke retains the mouse-up point
+PASS Mosaic mouse gesture commits exactly one annotation
+PASS Mosaic mouse-up preserves the final endpoint
+PASS Highlight mouse gesture commits exactly one annotation
+PASS Highlight mouse-up preserves the final endpoint
+PASS Highlight stroke retains the mouse-up point
+PASS text mouse gesture and Enter commit the editor contents
+PASS number tool increments consecutive click badges
+PASS Rect ignores a zero-length click
+PASS Ellipse ignores a zero-length click
+PASS Line ignores a zero-length click
+PASS Arrow ignores a zero-length click
+PASS Rect Shift constraint produces equal sides
+PASS Rect remains unconstrained without Shift
+PASS Rect Shift constraint preserves reverse-drag direction
+PASS Ellipse Shift constraint produces equal sides
+PASS Ellipse remains unconstrained without Shift
+PASS Ellipse Shift constraint preserves reverse-drag direction
+PASS Line Shift snaps a diagonal to 45 degrees
+PASS Line Shift snaps a shallow stroke horizontally
+PASS Arrow Shift snaps a diagonal to 45 degrees
+PASS Arrow Shift snaps a shallow stroke horizontally
+PASS Undo removes only the latest drawn annotation
+PASS Redo restores the latest drawn annotation
+PASS Ctrl+Z invokes annotation undo
+PASS Ctrl+Y invokes annotation redo
+PASS drawing after Undo clears the abandoned redo branch
+PASS Undo and Redo keep the next numbered marker consistent
+PASS Undo with no annotations preserves the screenshot selection
+PASS Select drags an existing annotation without creating a new one
+PASS Select keeps the moved annotation selected
+PASS Undo restores both endpoints after an annotation move
+PASS Redo restores an annotation move
+PASS Delete removes the selected annotation and clears its selection
+PASS Undo restores a deleted annotation at its moved position
+PASS Redo reapplies selected annotation deletion
+PASS Select hit-tests and moves a line segment
+PASS Select on empty screenshot space clears selection without drawing
+PASS unfinished Select drag temporarily moves the rectangle by 30 and 10 pixels
+PASS deleting during an annotation move cancels the active drag and clears selection
+PASS one Undo restores a mid-drag deletion at the pre-drag position
+PASS Redo reapplies a mid-drag deletion without restarting its canceled drag
+PASS new line annotation appears in the circular screenshot output
+PASS shape masking clips annotations as well as source pixels
+PASS Rect enables fill and disables the arrow-only option
+PASS Rect fill option produces solid center pixels
+PASS Rect filled interior can select the annotation
+PASS Rect selected fill change restores an empty center
+PASS Rect Undo restores filled pixels
+PASS Rect Redo restores the unfilled outline
+PASS Ellipse enables fill and disables the arrow-only option
+PASS Ellipse fill option produces solid center pixels
+PASS filled ellipse keeps its outside corner empty
+PASS Ellipse filled interior can select the annotation
+PASS Ellipse selected fill change restores an empty center
+PASS Ellipse Undo restores filled pixels
+PASS Ellipse Redo restores the unfilled outline
+PASS arrow enables bidirectional mode and disables fill
+PASS bidirectional arrow adds a visible head at the starting endpoint
+PASS selected arrow can return to a single head
+PASS Undo restores the second arrowhead pixels
+PASS Redo reapplies the single-arrow style
+PASS line disables shape-specific fill and arrow options
+PASS changing selected color updates visible stroke pixels
+PASS Undo restores the selected annotation color
+PASS Redo restores the changed annotation color
+PASS selected width change thickens the visible outline
+PASS width changes invalidate cached annotation bounds
+PASS Undo restores the previous stroke thickness exactly
+PASS Undo rebuilds bounds at the original thickness
+PASS Redo reapplies selected stroke thickness
+PASS bracket shortcut changes selected stroke thickness
+PASS mouse wheel changes selected stroke thickness
+PASS unchanged pen redraw reuses its cached point array
+PASS cached pen rendering contains its original stroke
+PASS moving a cached pen redraws at its new location and clears the old stroke
+PASS pen move refreshes both cached points and hit-test bounds
+PASS Undo rebuilds cached pen rendering at its original position
+PASS unchanged mosaic redraw reuses its cache without changing output pixels
+PASS selected mosaic block change refreshes the cache and visible obscured detail
+PASS Undo rebuilds the original mosaic pixels exactly
+PASS Redo invalidates the mosaic preview before regeneration
+PASS mosaic annotation can be undone after its style change
+PASS discarding a redo branch disposes an abandoned mosaic cache
+PASS Rect rejects a 2-by-1 degenerate drag
+PASS Rect accepts a nondegenerate two-pixel shape
+PASS Ellipse rejects a 2-by-1 degenerate drag
+PASS Ellipse accepts a nondegenerate two-pixel shape
+PASS duplicate mouse positions do not add redundant pen points or lose the stroke
+PASS double-click cleanup preserves a dragged pen stroke
+PASS Number click commits one temporary stamp
+PASS Number double-click cleanup removes only the recent stamp
+PASS Number stamp cleanup preserves earlier undo history
+PASS Number removed stamp never returns through Redo
+PASS double-click number cleanup restores the next badge counter
+PASS Pen click commits one temporary stamp
+PASS Pen double-click cleanup removes only the recent stamp
+PASS Pen stamp cleanup preserves earlier undo history
+PASS Pen removed stamp never returns through Redo
+PASS Highlight click commits one temporary stamp
+PASS Highlight double-click cleanup removes only the recent stamp
+PASS Highlight stamp cleanup preserves earlier undo history
+PASS Highlight removed stamp never returns through Redo
+PASS double-click cleanup preserves an older intended number stamp
+PASS annotation tool preview is saved and readable
+PASS shape order starts with rectangle then circle
+PASS rectangle path preserves selection bounds
+PASS rectangle keeps original output dimensions
+PASS rectangle preserves every source pixel exactly
+PASS rectangle contains an interior point
+PASS rectangle rejects a point outside its bounds
+PASS circle is inscribed with equal width and height
+PASS circle is centered inside a wide drag selection
+PASS circle contains its center
+PASS circle excludes wide-selection padding
+PASS circle retains selection canvas dimensions
+PASS circle center stays opaque
+PASS circle output corners are transparent
+PASS circle wide-selection padding stays transparent
+PASS circle edge has antialiased transparency coverage
+PASS PNG round trip keeps dimensions and transparent corners
+PASS PNG round trip keeps opaque source colors
+PASS opaque export fills transparent regions with white
+PASS opaque export preserves opaque source colors
+PASS JPEG round trip has white opaque background
+PASS BMP round trip has white opaque background
+PASS opaque conversion leaves original transparency unchanged
+PASS Triangle path has the requested number of vertices
+PASS Triangle path contains its center
+PASS Triangle keeps selection canvas dimensions
+PASS Triangle has opaque center and transparent outside corner
+PASS Triangle does not hit-test the empty outside corner
+PASS Pentagon path has the requested number of vertices
+PASS Pentagon path contains its center
+PASS Pentagon keeps selection canvas dimensions
+PASS Pentagon has opaque center and transparent outside corner
+PASS Pentagon does not hit-test the empty outside corner
+PASS Hexagon path has the requested number of vertices
+PASS Hexagon path contains its center
+PASS Hexagon keeps selection canvas dimensions
+PASS Hexagon has opaque center and transparent outside corner
+PASS Hexagon does not hit-test the empty outside corner
+PASS free polygon preserves concave user vertices
+PASS concave polygon includes its vertical arm
+PASS concave polygon excludes its notch
+PASS concave polygon mask includes the arm and leaves its notch transparent
+PASS free polygon uses source coordinates without shifting pixels
+PASS polygon hit-testing respects selection bounds even for oversized vertices
+PASS annotations use absolute source coordinates
+PASS annotations are clipped to the selected shape
+PASS annotation rendering leaves source bitmap untouched
+PASS negative source bounds intersect bitmap extent
+PASS source clipping starts at the correct source pixel
+PASS right and bottom source bounds are clipped
+PASS fully out-of-range selection returns no output
+PASS zero-width selection returns no output
+PASS shape preview is saved and readable
+PASS new captures default to rectangle
+PASS shape controls prioritize rectangle then circle
+PASS capture interface exposes the shortcut settings entry
+PASS circle drag always produces a square crop
+PASS circle interaction exports actual transparent corners
+PASS circle edge resize enlarges the circle and preserves opposite anchor
+PASS selected region can switch to triangle
+PASS two polygon vertices cannot be finalized or exported
+PASS right-click withdraws the last polygon vertex
+PASS Enter finalizes polygon without copying or closing
+PASS polygon crop matches vertex bounds
+PASS moving polygon also moves every vertex
+PASS resizing polygon transforms its geometry with crop
+PASS shrinking polygon to zero returns to vertex selection
+PASS reselection clears polygon geometry
+PASS double-click finishes polygon and leaves editing available
+PASS polygon finishing double-click never immediately exports capture
+PASS circle selection does not replace next capture rectangle default
+PASS switching to polygon commits and preserves text annotation
+PASS polygon completion restores retained annotation preview
+PASS explicit reselect still discards annotations
+PASS rapid quick saves create separate files
+PASS second quick save never overwrites first pixels
+PASS settings retain unchanged initial hotkey
+PASS settings capture dialog keys with modifiers
+PASS reserved key does not overwrite valid choice
+PASS cancelled countdown disposes its form and timers
+PASS settings parse common key alias Ctrl+Esc
+PASS settings parse common key alias Ctrl+PgUp
+PASS settings parse common key alias Alt+PgDn
+PASS settings parse common key alias Ctrl+Del
+PASS settings parse common key alias Shift+空格
+PASS settings parse common key alias Ctrl+Enter
+PASS settings reject invalid or duplicate input Ctrl+Ctrl+A
+PASS settings reject invalid or duplicate input Ctrl+Control+A
+PASS settings reject invalid or duplicate input Win+Windows+A
+PASS settings reject invalid or duplicate input Ctrl+Bogus+A
+PASS settings reject invalid or duplicate input Ctrl+LButton
+PASS settings reject invalid or duplicate input Ctrl+F12
+PASS settings clearly show currently effective shortcut
+PASS settings starts in ordinary text editing mode
+PASS ordinary letters are not swallowed as shortcut recording
+PASS modified dialog keys are not recorded until recording is requested
+PASS actual textbox edits update pending parsed shortcut
+PASS editing text does not apply or save shortcut
+PASS explicit recording temporarily locks text input
+PASS Tab ends recording and preserves pending shortcut
+PASS Escape exits recording without cancelling settings
+PASS explicit recording accepts Ctrl+Tab and returns to text editing
+PASS reserved key recording shows error and retains prior choice
+PASS restore default fills pending shortcut without applying it
+PASS invalid shortcut stays editable and never reaches registration: 
+PASS invalid shortcut stays editable and never reaches registration: A
+PASS invalid shortcut stays editable and never reaches registration: Ctrl+
+PASS invalid shortcut stays editable and never reaches registration: Ctrl+F12
+PASS invalid shortcut stays editable and never reaches registration: Ctrl+Ctrl+A
+PASS invalid shortcut stays editable and never reaches registration: Ctrl+Bogus+A
+PASS invalid shortcut stays editable and never reaches registration: Ctrl+LButton
+PASS Enter in ordinary editing mode saves validated input
+PASS Escape in ordinary editing mode cancels without saving
+PASS conflict retains active original shortcut and settings dialog
+PASS conflict error is visible while current effective label stays unchanged
+PASS correcting conflict applies then saves successfully in same dialog
+PASS configuration failure never reports save success or closes settings
+PASS configuration failure clearly identifies temporary effective shortcut
+PASS configuration failure keeps prior persisted shortcut intact
+PASS retry can persist temporary shortcut without leaving settings
+PASS unexpected backend exception remains visible and editable
+PASS capture screen can open settings with an owner
+PASS tray settings entry remains supported
+PASS capture shortcut settings opens a real modal dialog
+PASS shortcut settings is owned by the active capture
+PASS shortcut settings stays above capture and cancellation preserves selection window
+PASS portrait pin height is bounded
+PASS landscape pin width is bounded
+PASS pin zoom preserves aspect ratio
+PASS pin handle registered
+PASS pin handle removed on dispose
+PASS clipboard DIBV5 includes a full header and pixel buffer
+PASS clipboard DIBV5 declares top-down rows and alpha mask
+PASS clipboard DIBV5 preserves transparent corners and opaque center
+PASS clipboard PNG source retains source transparency and colors
+PASS transparent pin region omits crop corners
+PASS pin starts with the screenshot silhouette
+PASS pin zoom scales its visible silhouette
+PASS transparent pin disposal releases registered handle
+PASS opaque rectangle pins retain ordinary rectangular windows
+OCR engine: zh-Hans-CN
+PASS installed OCR engine available
+PASS OCR completes within 30 seconds
+OCR result: HELLO SNAPTOOL 123 / SECOND 凵 NE 456
+PASS real OCR recognizes both lines and retains newline
+PASS oversize OCR image is downscaled successfully
+PASS OCR text area does not cover bottom buttons
+PASS OCR result survives closing capture before completion
+PASS: 345 assertions

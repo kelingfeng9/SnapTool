@@ -1,0 +1,3 @@
+hotkey=Ctrl+Alt+A
+ocr=
+pinwin=1

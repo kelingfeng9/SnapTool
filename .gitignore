@@ -1,0 +1,23 @@
+# Local builds, backups and release workspaces
+/artifacts/
+/backups/
+/releases/
+/bin/
+/obj/
+/.vs/
+
+# Personal settings and runtime output
+SnapTool.config.txt
+*.config.tmp
+*.exe
+*.pdb
+*.log
+*.tmp
+*.bak
+*.user
+*.suo
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+Desktop.ini

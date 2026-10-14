@@ -1,0 +1,19 @@
+No desktop capture, UI display, real hotkey, clipboard, or configuration write.
+MEASURE empty_local_clip frames=80 mean_ms=0.809 median_ms=0.764 p95_ms=1.057 GC=0/0/0
+MEASURE empty_full_clip frames=30 mean_ms=13.140 median_ms=13.073 p95_ms=17.663 GC=0/0/0
+ESTIMATED pen ToArray payload_per_paint=320000 bytes excluding array headers/native copies
+MEASURE 10_pen_4000_points_local_clip frames=60 mean_ms=2.386 median_ms=2.185 p95_ms=3.282 GC=12/0/0
+MEASURE 10_pen_4000_points_full_clip frames=20 mean_ms=102.900 median_ms=104.027 p95_ms=136.431 GC=4/0/0
+MEASURE one_large_mosaic_block8_outside_clip frames=60 mean_ms=17.286 median_ms=16.429 p95_ms=24.333 GC=0/0/0
+MEASURE one_large_mosaic_block8_full_clip frames=20 mean_ms=35.480 median_ms=34.457 p95_ms=46.838 GC=0/0/0
+MEASURE five_large_mosaic_block2_outside_clip frames=30 mean_ms=100.538 median_ms=101.162 p95_ms=117.407 GC=0/0/0
+MEASURE five_large_mosaic_block2_full_clip frames=15 mean_ms=135.524 median_ms=122.556 p95_ms=207.239 GC=0/0/0
+NO_UI benchmark handle_created=False visible=False
+CLICK Pen committed_after_first_click=1 committed_before_doubleclick=1 current_present=True last_number=0
+NO_UI Pen handle_created=False visible=False
+CLICK Highlight committed_after_first_click=1 committed_before_doubleclick=1 current_present=True last_number=0
+NO_UI Highlight handle_created=False visible=False
+CLICK Number committed_after_first_click=1 committed_before_doubleclick=2 current_present=False last_number=2
+NO_UI Number handle_created=False visible=False
+JITTER Rect 2x1 displacement committed=1
+DUPLICATE_MOVES no_displacement_events=1000 points=1001

@@ -1,0 +1,22 @@
+PASS move includes final mouse-up delta even without MouseMove
+PASS undo reverses complete final mouse-up delta
+PASS redo replays complete final mouse-up delta
+PASS delete during an active move terminates gesture state
+PASS first undo immediately restores delete during active move
+DELETE_DURING_MOVE restored_position={X=100,Y=150} history_count=1
+PASS Pen double-click cleanup preserves a stamp at another position
+PASS Pen double-click cleanup preserves a stamp from another active tool
+PASS Pen double-click cleanup removes matching same-location stamp
+PASS Highlight double-click cleanup preserves a stamp at another position
+PASS Highlight double-click cleanup preserves a stamp from another active tool
+PASS Highlight double-click cleanup removes matching same-location stamp
+PASS Number double-click cleanup preserves a stamp at another position
+PASS Number double-click cleanup preserves a stamp from another active tool
+PASS Number double-click cleanup removes matching same-location stamp
+PASS mosaic style invalidates old preview before redraw
+PASS mosaic changed block uses rebuilt preview
+PASS undo mosaic style invalidates cached changed preview
+PASS undo mosaic style redraws correct block size
+PASS redo mosaic style invalidates previous preview
+PASS new history branch disposes abandoned mosaic cache
+PROBES 20 conditions checked; no UI shown, clipboard/config/registry/hotkeys touched.

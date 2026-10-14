@@ -1,0 +1,3 @@
+CTOR new pre_captured_1920x1080_bitmap_only first_ms=72.885
+CTOR new subsequent_count=29 mean_ms=7.257 median_ms=6.387 p95_ms=17.120
+No global hotkey/capture/display latency inference; fixture allocation is excluded.
