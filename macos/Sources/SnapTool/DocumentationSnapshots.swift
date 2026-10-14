@@ -50,7 +50,9 @@ enum DocumentationSnapshots {
         settings.showWindow(nil)
         settings.window?.appearance = NSAppearance(named: .aqua)
         try await Task.sleep(nanoseconds: 150_000_000)
-        if let view = settings.window?.contentView { try save(view: view, to: directory.appendingPathComponent("mac-settings.png")) }
+        if let view = settings.window?.contentView {
+            try save(view: view, to: directory.appendingPathComponent("mac-settings.png"), background: settings.window?.backgroundColor ?? .windowBackgroundColor)
+        }
         settings.close()
 
         let boardSize = CGSize(width: 1200, height: 750)
@@ -99,7 +101,7 @@ enum DocumentationSnapshots {
                 } }
                 let polygon = [CGPoint(x: 95, y: 35), CGPoint(x: 360, y: 80), CGPoint(x: 300, y: 225), CGPoint(x: 115, y: 200)]
                 if let crop = try? AnnotationRenderer(desktop: desktop, pixelScale: 1).render(selection: CGRect(x: 90, y: 30, width: 280, height: 200), shape: shape, vertices: polygon) {
-                    NSImage(cgImage: crop, size: CGSize(width: 280, height: 180)).draw(in: CGRect(x: x + 10, y: y + 44, width: 280, height: 180), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                    NSImage(cgImage: crop, size: CGSize(width: 280, height: 200)).draw(in: CGRect(x: x + 24, y: y + 44, width: 252, height: 180), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
                 }
             }
         }
@@ -126,12 +128,19 @@ enum DocumentationSnapshots {
     private static func text(_ value: String, at point: CGPoint, size: CGFloat) {
         (value as NSString).draw(at: point, withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: .medium), .foregroundColor: NSColor(srgbRed: 0.16, green: 0.2, blue: 0.26, alpha: 1)])
     }
-    private static func save(view: NSView, to url: URL) throws {
+    private static func save(view: NSView, to url: URL, background: NSColor? = nil) throws {
         view.layoutSubtreeIfNeeded()
         view.displayIfNeeded()
         guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { throw OutputServiceError.encodingFailed }
         view.cacheDisplay(in: view.bounds, to: bitmap)
-        guard let data = bitmap.representation(using: .png, properties: [:]) else { throw OutputServiceError.encodingFailed }
+        let data: Data
+        if let background, let image = bitmap.cgImage, let rgb = background.usingColorSpace(.sRGB) {
+            let opaque = try AnnotationRenderer.opaqueImage(image, background: RGBAColor(red: rgb.redComponent, green: rgb.greenComponent, blue: rgb.blueComponent))
+            data = try AnnotationRenderer.PNGData(opaque)
+        } else {
+            guard let encoded = bitmap.representation(using: .png, properties: [:]) else { throw OutputServiceError.encodingFailed }
+            data = encoded
+        }
         try data.write(to: url)
     }
 }

@@ -115,7 +115,7 @@ Mac 的编译、单元测试、打包与启动检查以 [macOS 构建记录](htt
 
 Windows 贴图中 **Ctrl + C** 复制图片；右键提供复制、置顶和关闭。Mac 贴图中 **⌘C** 复制，右键还提供“另存为…”和“恢复大小与透明度”；**⌘S** 另存为，**⌘0** 恢复。
 
-![Mac 贴图与透明轮廓示例](docs/images/mac/mac-pins.png)
+![Mac 贴图示例](docs/images/mac/mac-pins.png)
 
 ## 取色、OCR 与延迟截图
 
@@ -193,7 +193,7 @@ Enter 在自由多边形绘制中用于闭合，在文字输入中用于提交�
 
 ### Mac 应用
 
-解压后将 `SnapTool.app` 拖到“应用程序”，打开后从菜单栏操作；默认没有 Dock 图标。正常从 Finder 再次打开应用会交给已有应用处理。避免同时运行多个位置的 `.app` 副本，以免争用快捷键。
+解压后将 `SnapTool.app` 拖到“应用程序”，打开后从菜单栏操作；默认没有 Dock 图标。再次打开 SnapTool 时，新版会调取已有实例的截图，避免重复常驻和快捷键争用。
 
 首次截图需要屏幕读取授权：**系统设置 → 隐私与安全性 → 屏幕录制**；较新系统名称为 **“屏幕与系统音频录制”**。允许 SnapTool 后按系统提示重新打开。软件不采集音频，全局快捷键不需要“辅助功能”或“输入监控”授权。设置路径以 [Apple 的授权说明](https://support.apple.com/guide/mac-help/control-access-screen-system-audio-recording-mchld6aa7d23/mac) 为准。
 

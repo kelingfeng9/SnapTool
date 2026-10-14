@@ -45,8 +45,6 @@ jobs:
           } 2>&1 | tee build/environment.log
 
       - name: Run Swift tests
-        id: tests
-        continue-on-error: true
         run: |
           set -euo pipefail
           swift test --package-path . --build-path build/swift-tests --arch arm64 2>&1 | tee build/test.log
@@ -175,6 +173,3 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Require all Swift tests to pass
-        if: always() && steps.tests.outcome != 'success'
-        run: exit 1

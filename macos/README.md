@@ -17,7 +17,7 @@ SnapTool 的原生 macOS 菜单栏版本，面向 **Apple 芯片、macOS 14 及�
 
 ## 截图与标注
 
-![Mac 原生截图界面与工具栏](../docs/images/mac/mac-capture.png)
+![Mac 原生截图界面与工具栏](https://raw.githubusercontent.com/kelingfeng9/SnapTool/main/docs/images/mac/mac-capture.png)
 
 调取后默认使用矩形截图，圆形排在第二位。还可以选择三角形、五边形、六边形与自由多边形。拖动框选区域，也可以单击自动识别的窗口；完成选择后拖动选区移动，拖动边缘或角点调整大小。
 
@@ -71,9 +71,13 @@ OCR 识别截图的原始内容，避免将标注笔迹当作文字。结果窗�
 
 设置还包括默认标注颜色、线宽、截图时识别贴图窗口，以及“登录 Mac 时启动”。登录启动使用 macOS 的系统登录项服务；如果需要额外确认，可点击“系统登录项…”查看。请将应用放在“应用程序”中再开启，失败时窗口会显示原因。
 
-![Mac 快捷键、OCR、标注与登录启动设置](../docs/images/mac/mac-settings.png)
+![Mac 快捷键、OCR、标注与登录启动设置](https://raw.githubusercontent.com/kelingfeng9/SnapTool/main/docs/images/mac/mac-settings.png)
 
-更多形状、标注和贴图的操作配图，以及 Windows / Mac 快捷键对照，见 [双端图文使用手册](../README.md)。
+更多形状、标注和贴图的操作配图，以及 Windows / Mac 快捷键对照，见 [双端图文使用手册](https://github.com/kelingfeng9/SnapTool#readme)。
+
+## 更新与重复打开
+
+再次打开 SnapTool 时，新版会调取已有实例的截图，避免重复常驻。更新前先从菜单栏退出旧版，再替换“应用程序”中的 `SnapTool.app` 并重新打开；不要只替换文件后继续使用旧进程。系统 UserDefaults 中保存的偏好会保留。如果系统重新要求屏幕读取权限，按提示允许后重新打开。
 
 ## 从源码构建
 

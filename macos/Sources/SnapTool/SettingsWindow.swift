@@ -1,11 +1,6 @@
 import AppKit
 import ServiceManagement
 
-// Temporary diagnostics for comparing XCTest and the real application lifecycle.
-private func settingsTrace(_ stage: String) {
-    FileHandle.standardError.write(Data(("[SettingsUI] " + stage + "\n").utf8))
-}
-
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let preferences: Preferences
     private let hotKeyManager: HotKeyManager
@@ -24,13 +19,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var languageChoices: [(String, [String])] = [("自动识别", [])]
 
     init(preferences: Preferences, hotKeyManager: HotKeyManager) {
-        settingsTrace("init enter")
         self.preferences = preferences
         self.hotKeyManager = hotKeyManager
-        settingsTrace("color well construct begin")
         colorWell = SettingsColorWell()
-        settingsTrace("color well construct end")
-        settingsTrace("window construct begin")
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 460), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "SnapTool 设置"
         window.isReleasedWhenClosed = false
@@ -38,19 +29,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let content = NSView(frame: NSRect(origin: .zero, size: window.contentLayoutRect.size))
         window.contentView = content
         super.init(window: window)
-        settingsTrace("window construct end")
         window.delegate = self
         buildInterface(in: content)
         loadValues()
-        settingsTrace("window center begin")
         window.center()
-        settingsTrace("init complete")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func showWindow(_ sender: Any?) {
-        settingsTrace("show enter")
         guard let window else { return }
         // Bringing an existing window forward should preserve edits and active recording.
         if !window.isVisible && !window.isMiniaturized { loadValues() }
@@ -59,17 +46,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             window.collectionBehavior.remove(.moveToActiveSpace)
         } else { window.collectionBehavior.insert(.moveToActiveSpace) }
         positionOnCurrentDisplay(window)
-        settingsTrace("show super begin")
         super.showWindow(sender)
-        settingsTrace("show super end")
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(sender)
-        settingsTrace("show layout begin")
         window.contentView?.layoutSubtreeIfNeeded()
-        settingsTrace("show layout end")
         synchronizeColorPanelLevel()
-        settingsTrace("show complete")
     }
 
     private func positionOnCurrentDisplay(_ window: NSWindow) {
@@ -85,7 +67,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func buildInterface(in content: NSView) {
-        settingsTrace("build interface begin")
         // This is a fixed-size native utility window. Manual frames avoid building
         // constraints between controls before they share a view hierarchy.
         let heading = NSTextField(labelWithString: "快捷键与截图偏好")
@@ -110,9 +91,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         hint.frame = NSRect(x: 24, y: 326, width: 492, height: 44)
         content.addSubview(hint)
 
-        settingsTrace("OCR supported languages begin")
         let supported = (try? OCRService.supportedLanguages()) ?? ["zh-Hans", "zh-Hant", "en-US"]
-        settingsTrace("OCR supported languages end")
         let locale = Locale(identifier: "zh-Hans")
         languageChoices = [("自动识别", [])] + supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
         languagePopup.removeAllItems()
@@ -127,7 +106,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         recognizePinned.frame = NSRect(x: 24, y: 246, width: 492, height: 24)
         content.addSubview(recognizePinned)
 
-        settingsTrace("color well layout begin")
         addLabel("默认颜色", frame: NSRect(x: 24, y: 208, width: 75, height: 24), to: content)
         colorWell.frame = NSRect(x: 105, y: 204, width: 48, height: 28)
         colorWell.target = self
@@ -142,7 +120,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         content.addSubview(widthSlider)
         widthLabel.frame = NSRect(x: 454, y: 208, width: 55, height: 24)
         content.addSubview(widthLabel)
-        settingsTrace("color well layout end")
 
         loginToggle.target = self
         loginToggle.action = #selector(loginChanged)
@@ -162,7 +139,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         save.keyEquivalent = "\r"
         save.frame = NSRect(x: 360, y: 30, width: 156, height: 32)
         content.addSubview(save)
-        settingsTrace("build interface complete")
     }
 
     private func addLabel(_ title: String, frame: NSRect, to content: NSView) {
@@ -173,21 +149,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func loadValues() {
-        settingsTrace("load values begin")
         stopRecording(restore: false)
         shortcutField.stringValue = preferences.hotkey.displayName
         if let selected = languageChoices.firstIndex(where: { $0.1 == preferences.ocrLanguages }) { languagePopup.selectItem(at: selected) }
         else { languagePopup.selectItem(at: 0) }
         recognizePinned.state = preferences.recognizePinnedWindows ? .on : .off
-        settingsTrace("color well load begin")
         colorWell.color = preferences.defaultColor
-        settingsTrace("color well load end")
         widthSlider.doubleValue = Double(preferences.defaultLineWidth)
         widthChanged()
         refreshLoginState()
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.stringValue = "当前生效：\(hotKeyManager.shortcut?.displayName ?? "尚未注册")。截图只在调取时读取屏幕。"
-        settingsTrace("load values complete")
     }
 
     @objc private func toggleRecording() {
@@ -265,9 +237,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func refreshLoginState() {
-        settingsTrace("SMAppService status begin")
         let status = SMAppService.mainApp.status
-        settingsTrace("SMAppService status end")
         loginToggle.state = (status == .enabled || status == .requiresApproval) ? .on : .off
     }
 

@@ -2,10 +2,6 @@ import AppKit
 import XCTest
 @testable import SnapTool
 
-private func settingsUITestTrace(_ stage: String) {
-    FileHandle.standardError.write(Data((stage + "\n").utf8))
-}
-
 /// Creates only test-owned objects. XCTest owns the application/run-loop lifecycle.
 @MainActor
 private final class SettingsFixture {
@@ -16,22 +12,18 @@ private final class SettingsFixture {
     let controller: SettingsWindowController
 
     init() {
-        settingsUITestTrace("[SettingsUI] fixture: initialize application")
         _ = NSApplication.shared
         suite = "SnapTool.SettingsWindowTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suite)!
         preferences = Preferences(defaults: defaults)
         // Never register a real global hot key or change system login items.
         manager = HotKeyManager()
-        settingsUITestTrace("[SettingsUI] fixture: initialize controller")
         controller = SettingsWindowController(preferences: preferences, hotKeyManager: manager)
-        settingsUITestTrace("[SettingsUI] fixture: controller initialized")
     }
 
     func cleanup() {
         controller.close()
         defaults.removePersistentDomain(forName: suite)
-        settingsUITestTrace("[SettingsUI] fixture: closed")
     }
 }
 
@@ -104,7 +96,11 @@ final class SettingsWindowTests: XCTestCase {
         let window = try XCTUnwrap(controller.window)
         let field = try control("settings.shortcut", in: controller, as: NSTextField.self)
         field.stringValue = "Cmd+Shift+S"
+        XCTAssertTrue(window.styleMask.contains(.miniaturizable), "This native test window must support miniaturization.")
         window.miniaturize(nil)
+        // AppKit's minimize animation completes after this call returns. Yield the
+        // main actor so the native run loop can finish before checking its state.
+        try await Task.sleep(nanoseconds: 850_000_000)
         XCTAssertTrue(window.isMiniaturized)
         controller.showWindow(nil)
         XCTAssertFalse(window.isMiniaturized)
@@ -163,16 +159,12 @@ final class SettingsWindowTests: XCTestCase {
         defer { fixture.cleanup() }
         let controller = fixture.controller
         let manager = fixture.manager
-        settingsUITestTrace("[SettingsUI] close-recording: show window")
         controller.showWindow(nil)
         let record = try control("settings.record", in: controller, as: NSButton.self)
-        settingsUITestTrace("[SettingsUI] close-recording: start recording")
         record.performClick(nil)
         XCTAssertTrue(manager.isSuspended)
-        settingsUITestTrace("[SettingsUI] close-recording: close window")
         controller.close()
         XCTAssertFalse(manager.isSuspended)
         XCTAssertNil(manager.onSuspendedTrigger)
-        settingsUITestTrace("[SettingsUI] close-recording: assertions complete")
     }
 }
