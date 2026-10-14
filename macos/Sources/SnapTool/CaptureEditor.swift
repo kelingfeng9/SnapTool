@@ -441,7 +441,8 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
                 setNeedsDisplay(ShapeGeometry.normalized(start: previous, end: pointer).insetBy(dx: -margin, dy: -margin))
             } else {
                 let old = AnnotationGeometry.bounds(of: current!)
-                current?.end = ShapeGeometry.constrainedEnd(start: current!.start, end: pointer, tool: tool, enabled: event.modifierFlags.contains(.shift))
+                let end = ShapeGeometry.constrainedEnd(start: current!.start, end: pointer, tool: tool, enabled: event.modifierFlags.contains(.shift))
+                current?.end = end
                 setNeedsDisplay(old.union(AnnotationGeometry.bounds(of: current!)).insetBy(dx: -4, dy: -4))
             }
         }
