@@ -6,9 +6,10 @@ final class AppDelegateWindowTests: XCTestCase {
     @MainActor
     private func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
 
+    @MainActor
     func testCaptureToolbarOpensSettingsAboveItsWindowAndRecoversItAfterMinimizing() async throws {
-        try await MainActor.run {
             _ = NSApplication.shared
+            FileHandle.standardError.write(Data("Settings entry: AppKit initialized; screens=\(NSScreen.screens.count)\n".utf8))
             let display = try XCTUnwrap(NSScreen.screens.first)
             let frame = display.frame
             let context = try XCTUnwrap(CGContext(data: nil, width: Int(frame.width), height: Int(frame.height),
@@ -16,12 +17,14 @@ final class AppDelegateWindowTests: XCTestCase {
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
             let image = try XCTUnwrap(context.makeImage())
             let app = AppDelegate()
-            try withExtendedLifetime(app) {
+            FileHandle.standardError.write(Data("Settings entry: delegate initialized\n".utf8))
                 app.presentCapture(DesktopCapture(image: image, frame: frame, scale: 1, windows: []))
+                FileHandle.standardError.write(Data("Settings entry: capture presented; windows=\(NSApp.windows.count)\n".utf8))
                 let overlay = try XCTUnwrap(NSApp.windows.compactMap { $0 as? CaptureWindow }.first { $0.isVisible })
                 let canvas = overlay.viewport.canvas
                 let entry = try XCTUnwrap(descendants(canvas).compactMap { $0 as? NSButton }.first { $0.title == "快捷键设置" })
                 entry.performClick(nil)
+                FileHandle.standardError.write(Data("Settings entry: button clicked; settings visibility check\n".utf8))
                 let settings = try XCTUnwrap(NSApp.windows.first { $0.title == "SnapTool 设置" && $0.isVisible })
                 defer { settings.close() }
                 XCTAssertTrue(settings.parent === overlay)
@@ -37,7 +40,6 @@ final class AppDelegateWindowTests: XCTestCase {
                 XCTAssertFalse(overlay.isVisible)
                 XCTAssertNil(settings.parent)
                 XCTAssertEqual(settings.level, .normal)
-            }
-        }
+            withExtendedLifetime(app) {}
     }
 }

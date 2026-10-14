@@ -39,7 +39,9 @@ enum DocumentationSnapshots {
         try save(view: session.windows[0].viewport, to: directory.appendingPathComponent("mac-capture.png"))
         session.close()
 
+        FileHandle.standardError.write(Data("Native documentation: capture rendered; construct settings\n".utf8))
         let settings = SettingsWindowController(preferences: preferences, hotKeyManager: HotKeyManager())
+        FileHandle.standardError.write(Data("Native documentation: settings constructed; show\n".utf8))
         settings.showWindow(nil)
         settings.window?.appearance = NSAppearance(named: .aqua)
         try await Task.sleep(nanoseconds: 150_000_000)

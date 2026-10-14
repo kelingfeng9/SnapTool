@@ -45,6 +45,8 @@ jobs:
           } 2>&1 | tee build/environment.log
 
       - name: Run Swift tests
+        id: tests
+        continue-on-error: true
         run: |
           set -euo pipefail
           swift test --package-path . --build-path build/swift-tests --arch arm64 2>&1 | tee build/test.log
@@ -137,3 +139,24 @@ jobs:
           path: macos/build/*.log
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Preserve native crash diagnostics
+        if: always()
+        run: |
+          mkdir -p build/crashes
+          for report in "$HOME/Library/Logs/DiagnosticReports"/SnapTool*.ips; do
+            if [[ -f "$report" ]]; then cp "$report" build/crashes/; fi
+          done
+
+      - name: Upload native crash diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapTool-macOS-crashes-${{ github.sha }}
+          path: macos/build/crashes/*.ips
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Require all Swift tests to pass
+        if: always() && steps.tests.outcome != 'success'
+        run: exit 1

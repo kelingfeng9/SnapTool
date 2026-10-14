@@ -1,6 +1,11 @@
 import AppKit
 import ServiceManagement
 
+// Temporary diagnostics for comparing XCTest and the real application lifecycle.
+private func settingsTrace(_ stage: String) {
+    FileHandle.standardError.write(Data(("[SettingsUI] " + stage + "\n").utf8))
+}
+
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let preferences: Preferences
     private let hotKeyManager: HotKeyManager
@@ -11,7 +16,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let languagePopup = NSPopUpButton()
     private let recognizePinned = NSButton(checkboxWithTitle: "截图时自动识别本工具的贴图窗口", target: nil, action: nil)
     private let loginToggle = NSButton(checkboxWithTitle: "登录 Mac 时启动", target: nil, action: nil)
-    private let colorWell = SettingsColorWell()
+    private let colorWell: SettingsColorWell
     private let widthSlider = NSSlider(value: 3, minValue: 1, maxValue: 24, target: nil, action: nil)
     private let widthLabel = NSTextField(labelWithString: "3 pt")
     private var recordingMonitor: Any?
@@ -19,8 +24,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var languageChoices: [(String, [String])] = [("自动识别", [])]
 
     init(preferences: Preferences, hotKeyManager: HotKeyManager) {
+        settingsTrace("init enter")
         self.preferences = preferences
         self.hotKeyManager = hotKeyManager
+        settingsTrace("color well construct begin")
+        colorWell = SettingsColorWell()
+        settingsTrace("color well construct end")
+        settingsTrace("window construct begin")
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 460), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "SnapTool 设置"
         window.isReleasedWhenClosed = false
@@ -28,15 +38,19 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let content = NSView(frame: NSRect(origin: .zero, size: window.contentLayoutRect.size))
         window.contentView = content
         super.init(window: window)
+        settingsTrace("window construct end")
         window.delegate = self
         buildInterface(in: content)
         loadValues()
+        settingsTrace("window center begin")
         window.center()
+        settingsTrace("init complete")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func showWindow(_ sender: Any?) {
+        settingsTrace("show enter")
         guard let window else { return }
         // Bringing an existing window forward should preserve edits and active recording.
         if !window.isVisible && !window.isMiniaturized { loadValues() }
@@ -45,12 +59,17 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             window.collectionBehavior.remove(.moveToActiveSpace)
         } else { window.collectionBehavior.insert(.moveToActiveSpace) }
         positionOnCurrentDisplay(window)
+        settingsTrace("show super begin")
         super.showWindow(sender)
+        settingsTrace("show super end")
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(sender)
+        settingsTrace("show layout begin")
         window.contentView?.layoutSubtreeIfNeeded()
+        settingsTrace("show layout end")
         synchronizeColorPanelLevel()
+        settingsTrace("show complete")
     }
 
     private func positionOnCurrentDisplay(_ window: NSWindow) {
@@ -66,6 +85,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func buildInterface(in content: NSView) {
+        settingsTrace("build interface begin")
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -94,7 +114,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         stack.addArrangedSubview(hint)
 
+        settingsTrace("OCR supported languages begin")
         let supported = (try? OCRService.supportedLanguages()) ?? ["zh-Hans", "zh-Hant", "en-US"]
+        settingsTrace("OCR supported languages end")
         let locale = Locale(identifier: "zh-Hans")
         languageChoices += supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
         languageChoices.forEach { languagePopup.addItem(withTitle: $0.0) }
@@ -108,6 +130,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         recognizePinned.action = #selector(markPendingChanges)
         stack.addArrangedSubview(recognizePinned)
 
+        settingsTrace("color well layout begin")
         colorWell.widthAnchor.constraint(equalToConstant: 50).isActive = true
         colorWell.heightAnchor.constraint(equalToConstant: 24).isActive = true
         colorWell.target = self
@@ -120,6 +143,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let styleRow = NSStackView(views: [NSTextField(labelWithString: "默认标注"), colorWell, widthSlider, widthLabel])
         styleRow.spacing = 12
         stack.addArrangedSubview(styleRow)
+        settingsTrace("color well layout end")
 
         loginToggle.target = self
         loginToggle.action = #selector(loginChanged)
@@ -138,20 +162,25 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         save.identifier = NSUserInterfaceItemIdentifier("settings.save")
         save.keyEquivalent = "\r"
         stack.addArrangedSubview(save)
+        settingsTrace("build interface complete")
     }
 
     private func loadValues() {
+        settingsTrace("load values begin")
         stopRecording(restore: false)
         shortcutField.stringValue = preferences.hotkey.displayName
         if let selected = languageChoices.firstIndex(where: { $0.1 == preferences.ocrLanguages }) { languagePopup.selectItem(at: selected) }
         else { languagePopup.selectItem(at: 0) }
         recognizePinned.state = preferences.recognizePinnedWindows ? .on : .off
+        settingsTrace("color well load begin")
         colorWell.color = preferences.defaultColor
+        settingsTrace("color well load end")
         widthSlider.doubleValue = Double(preferences.defaultLineWidth)
         widthChanged()
         refreshLoginState()
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.stringValue = "当前生效：\(hotKeyManager.shortcut?.displayName ?? "尚未注册")。截图只在调取时读取屏幕。"
+        settingsTrace("load values complete")
     }
 
     @objc private func toggleRecording() {
@@ -229,7 +258,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func refreshLoginState() {
+        settingsTrace("SMAppService status begin")
         let status = SMAppService.mainApp.status
+        settingsTrace("SMAppService status end")
         loginToggle.state = (status == .enabled || status == .requiresApproval) ? .on : .off
     }
 
@@ -271,6 +302,9 @@ private final class SettingsColorWell: NSColorWell {
 
     override func deactivate() {
         super.deactivate()
+        // An inactive well has no panel state to restore; avoid creating a shared
+        // native color panel as a side effect during initialization/cleanup.
+        guard originalPanelLevel != nil || originalPanelBehavior != nil else { return }
         let panel = NSColorPanel.shared
         if let originalPanelLevel { panel.level = originalPanelLevel }
         if let originalPanelBehavior { panel.collectionBehavior = originalPanelBehavior }
