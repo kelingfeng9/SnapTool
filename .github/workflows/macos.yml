@@ -1,0 +1,122 @@
+name: macOS native build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'macos/**'
+      - 'assets/**'
+      - '.github/workflows/macos.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-arm64:
+    name: Apple Silicon · macOS 14+
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    defaults:
+      run:
+        shell: bash
+        working-directory: macos
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Record build environment
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          {
+            sw_vers
+            uname -m
+            xcodebuild -version
+            swift --version
+            test "$(uname -m)" = arm64
+          } 2>&1 | tee build/environment.log
+
+      - name: Run Swift tests
+        run: |
+          set -euo pipefail
+          swift test --package-path . --build-path build/swift-tests --arch arm64 2>&1 | tee build/test.log
+
+      - name: Build and package app
+        run: |
+          set -euo pipefail
+          bash scripts/build-app.sh 2>&1 | tee build/build.log
+
+      - name: Validate app bundle and arm64 binary
+        id: validate
+        run: |
+          set -euo pipefail
+          APP_DIRECTORY="$(find build -type d -name SnapTool.app -print -quit)"
+          test -n "$APP_DIRECTORY"
+          test -x "$APP_DIRECTORY/Contents/MacOS/SnapTool"
+          {
+            plutil -lint "$APP_DIRECTORY/Contents/Info.plist"
+            test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP_DIRECTORY/Contents/Info.plist")" = '14.0'
+            test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_DIRECTORY/Contents/Info.plist")" = 'com.kelingfeng9.SnapTool'
+            file "$APP_DIRECTORY/Contents/MacOS/SnapTool"
+            test "$(lipo -archs "$APP_DIRECTORY/Contents/MacOS/SnapTool")" = arm64
+            codesign --verify --strict --verbose=2 "$APP_DIRECTORY"
+            codesign --display --verbose=4 "$APP_DIRECTORY"
+            unzip -t build/SnapTool-macOS-*-arm64.zip
+          } 2>&1 | tee build/validation.log
+          (cd build && shasum -a 256 SnapTool-macOS-*-arm64.zip) > build/SHA256SUMS.txt
+          echo "app_path=$APP_DIRECTORY" >> "$GITHUB_OUTPUT"
+
+      - name: Startup smoke without screen capture
+        env:
+          APP_DIRECTORY: ${{ steps.validate.outputs.app_path }}
+        run: |
+          set -euo pipefail
+          SMOKE_STARTED_AT="$(date +%s)"
+          "$APP_DIRECTORY/Contents/MacOS/SnapTool" --smoke-test > build/startup-smoke.log 2>&1 &
+          SMOKE_PID=$!
+          trap 'kill "$SMOKE_PID" 2>/dev/null || true' EXIT
+          for attempt in {1..15}; do
+            if ! kill -0 "$SMOKE_PID" 2>/dev/null; then
+              wait "$SMOKE_PID"
+              trap - EXIT
+              test "$(( $(date +%s) - SMOKE_STARTED_AT ))" -ge 2
+              echo 'App started and exited normally without requesting screen capture.' >> build/startup-smoke.log
+              cat build/startup-smoke.log
+              exit 0
+            fi
+            sleep 1
+          done
+          kill "$SMOKE_PID" 2>/dev/null || true
+          wait "$SMOKE_PID" 2>/dev/null || true
+          trap - EXIT
+          echo 'Startup smoke timed out; expected the --smoke-test mode to exit normally.' >> build/startup-smoke.log
+          cat build/startup-smoke.log
+          exit 1
+
+      - name: Upload installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapTool-macOS-arm64-${{ github.sha }}
+          path: |
+            macos/build/SnapTool-macOS-*-arm64.zip
+            macos/build/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload test and build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapTool-macOS-checks-${{ github.sha }}
+          path: macos/build/*.log
+          if-no-files-found: warn
+          retention-days: 30

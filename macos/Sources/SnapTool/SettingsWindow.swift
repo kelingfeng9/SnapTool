@@ -1,0 +1,243 @@
+import AppKit
+import ServiceManagement
+
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    let preferences: Preferences
+    private let hotKeyManager: HotKeyManager
+    var onChanged: (() -> Void)?
+    private let shortcutField = NSTextField()
+    private let recordButton = NSButton(title: "录制", target: nil, action: nil)
+    private let statusLabel = NSTextField(wrappingLabelWithString: "")
+    private let languagePopup = NSPopUpButton()
+    private let recognizePinned = NSButton(checkboxWithTitle: "截图时自动识别本工具的贴图窗口", target: nil, action: nil)
+    private let loginToggle = NSButton(checkboxWithTitle: "登录 Mac 时启动", target: nil, action: nil)
+    private let colorWell = SettingsColorWell()
+    private let widthSlider = NSSlider(value: 3, minValue: 1, maxValue: 24, target: nil, action: nil)
+    private let widthLabel = NSTextField(labelWithString: "3 pt")
+    private var recordingMonitor: Any?
+    private var originalShortcutText = ""
+    private var languageChoices: [(String, [String])] = [("自动识别", [])]
+
+    init(preferences: Preferences, hotKeyManager: HotKeyManager) {
+        self.preferences = preferences
+        self.hotKeyManager = hotKeyManager
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 420), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window.title = "SnapTool 设置"
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+        window.delegate = self
+        buildInterface()
+        loadValues()
+        window.center()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func showWindow(_ sender: Any?) {
+        loadValues()
+        super.showWindow(sender)
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(sender)
+    }
+
+    private func buildInterface() {
+        guard let content = window?.contentView else { return }
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 15
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24)])
+
+        let heading = NSTextField(labelWithString: "快捷键与截图偏好")
+        heading.font = .boldSystemFont(ofSize: 17)
+        stack.addArrangedSubview(heading)
+        shortcutField.placeholderString = "Ctrl+Option+A"
+        shortcutField.setAccessibilityLabel("全局截图快捷键")
+        shortcutField.widthAnchor.constraint(equalToConstant: 240).isActive = true
+        recordButton.target = self
+        recordButton.action = #selector(toggleRecording)
+        let shortcutRow = NSStackView(views: [NSTextField(labelWithString: "截图快捷键"), shortcutField, recordButton])
+        shortcutRow.spacing = 10
+        stack.addArrangedSubview(shortcutRow)
+        let hint = NSTextField(wrappingLabelWithString: "可直接输入组合键，或点击录制。保存成功后新键立即生效；发生冲突时保留原键。至少包含 ⌃ / ⌥ / ⌘ 之一。")
+        hint.textColor = .secondaryLabelColor
+        hint.font = .systemFont(ofSize: 12)
+        hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        stack.addArrangedSubview(hint)
+
+        let supported = (try? OCRService.supportedLanguages()) ?? ["zh-Hans", "zh-Hant", "en-US"]
+        let locale = Locale(identifier: "zh-Hans")
+        languageChoices += supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
+        languageChoices.forEach { languagePopup.addItem(withTitle: $0.0) }
+        languagePopup.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        let languageRow = NSStackView(views: [NSTextField(labelWithString: "文字识别语言"), languagePopup])
+        languageRow.spacing = 18
+        stack.addArrangedSubview(languageRow)
+        stack.addArrangedSubview(recognizePinned)
+
+        colorWell.widthAnchor.constraint(equalToConstant: 50).isActive = true
+        colorWell.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        widthSlider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        widthSlider.numberOfTickMarks = 24
+        widthSlider.allowsTickMarkValuesOnly = true
+        widthSlider.target = self
+        widthSlider.action = #selector(widthChanged)
+        let styleRow = NSStackView(views: [NSTextField(labelWithString: "默认标注"), colorWell, widthSlider, widthLabel])
+        styleRow.spacing = 12
+        stack.addArrangedSubview(styleRow)
+
+        loginToggle.target = self
+        loginToggle.action = #selector(loginChanged)
+        let loginSettings = NSButton(title: "系统登录项…", target: self, action: #selector(openLoginSettings))
+        let loginRow = NSStackView(views: [loginToggle, loginSettings])
+        loginRow.spacing = 18
+        stack.addArrangedSubview(loginRow)
+        statusLabel.font = .systemFont(ofSize: 12)
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        statusLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: 34).isActive = true
+        stack.addArrangedSubview(statusLabel)
+        let save = NSButton(title: "保存设置", target: self, action: #selector(saveSettings))
+        save.keyEquivalent = "\r"
+        stack.addArrangedSubview(save)
+    }
+
+    private func loadValues() {
+        stopRecording(restore: false)
+        shortcutField.stringValue = preferences.hotkey.displayName
+        if let selected = languageChoices.firstIndex(where: { $0.1 == preferences.ocrLanguages }) { languagePopup.selectItem(at: selected) }
+        else { languagePopup.selectItem(at: 0) }
+        recognizePinned.state = preferences.recognizePinnedWindows ? .on : .off
+        colorWell.color = preferences.defaultColor
+        widthSlider.doubleValue = Double(preferences.defaultLineWidth)
+        widthChanged()
+        refreshLoginState()
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.stringValue = "当前生效：\(hotKeyManager.shortcut?.displayName ?? "尚未注册")。截图只在调取时读取屏幕。"
+    }
+
+    @objc private func toggleRecording() {
+        if recordingMonitor != nil { stopRecording(restore: true); return }
+        originalShortcutText = shortcutField.stringValue
+        hotKeyManager.isSuspended = true
+        // Carbon consumes the currently registered combination before a local keyDown monitor.
+        hotKeyManager.onSuspendedTrigger = { [weak self] value in self?.acceptRecordedShortcut(value) }
+        shortcutField.isEditable = false
+        shortcutField.stringValue = "请按组合键（Esc 取消）"
+        recordButton.title = "取消录制"
+        window?.makeFirstResponder(nil)
+        recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, event.window === self.window else { return event }
+            if event.keyCode == 53 { self.stopRecording(restore: true); return nil }
+            do {
+                let value = try HotKeyShortcut(event: event)
+                self.acceptRecordedShortcut(value)
+            } catch {
+                self.showStatus(error.localizedDescription, isError: true)
+            }
+            return nil
+        }
+    }
+
+    private func stopRecording(restore: Bool) {
+        if let monitor = recordingMonitor { NSEvent.removeMonitor(monitor) }
+        if restore, recordingMonitor != nil { shortcutField.stringValue = originalShortcutText }
+        recordingMonitor = nil
+        hotKeyManager.onSuspendedTrigger = nil
+        hotKeyManager.isSuspended = false
+        shortcutField.isEditable = true
+        recordButton.title = "录制"
+    }
+
+    private func acceptRecordedShortcut(_ value: HotKeyShortcut) {
+        stopRecording(restore: false)
+        shortcutField.stringValue = value.displayName
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.stringValue = "已录制 \(value.displayName)，点击保存后生效。"
+    }
+
+    @objc private func saveSettings() {
+        guard recordingMonitor == nil else { showStatus("请先完成快捷键录制，或按 Esc 取消。", isError: true); return }
+        do {
+            let value = try HotKeyShortcut.parse(shortcutField.stringValue)
+            try hotKeyManager.register(value)
+            preferences.hotkey = value
+            let index = languagePopup.indexOfSelectedItem
+            preferences.ocrLanguages = languageChoices[max(0, min(index, languageChoices.count - 1))].1
+            preferences.recognizePinnedWindows = recognizePinned.state == .on
+            preferences.defaultColor = colorWell.color
+            preferences.defaultLineWidth = CGFloat(widthSlider.doubleValue)
+            shortcutField.stringValue = value.displayName
+            showStatus("设置已保存，\(value.displayName) 立即生效。", isError: false)
+            onChanged?()
+        } catch { showStatus(error.localizedDescription, isError: true) }
+    }
+
+    @objc private func widthChanged() { widthLabel.stringValue = "\(Int(widthSlider.doubleValue)) pt" }
+
+    @objc private func loginChanged() {
+        do {
+            if loginToggle.state == .on { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+            refreshLoginState()
+            if SMAppService.mainApp.status == .requiresApproval {
+                showStatus("登录启动需要在“系统设置 → 通用 → 登录项”中允许 SnapTool。", isError: false)
+            } else { showStatus("登录启动设置已更新。", isError: false) }
+        } catch {
+            refreshLoginState()
+            showStatus("无法更改登录启动：\(error.localizedDescription) 请将 SnapTool 放入“应用程序”后再试。", isError: true)
+        }
+    }
+
+    private func refreshLoginState() {
+        let status = SMAppService.mainApp.status
+        loginToggle.state = (status == .enabled || status == .requiresApproval) ? .on : .off
+    }
+
+    @objc private func openLoginSettings() { SMAppService.openSystemSettingsLoginItems() }
+    private func showStatus(_ text: String, isError: Bool) { statusLabel.stringValue = text; statusLabel.textColor = isError ? .systemRed : .secondaryLabelColor }
+    func synchronizeColorPanelLevel() { colorWell.synchronizePanelLevel() }
+    func windowDidBecomeKey(_ notification: Notification) { synchronizeColorPanelLevel() }
+    func windowWillClose(_ notification: Notification) {
+        stopRecording(restore: true)
+        if colorWell.isActive {
+            colorWell.deactivate()
+            NSColorPanel.shared.orderOut(nil)
+        }
+    }
+    deinit { if let monitor = recordingMonitor { NSEvent.removeMonitor(monitor) } }
+}
+
+/// Keeps the system color picker above an elevated settings window during capture.
+private final class SettingsColorWell: NSColorWell {
+    private var originalPanelLevel: NSWindow.Level?
+    private var originalPanelBehavior: NSWindow.CollectionBehavior?
+
+    override func activate(_ exclusive: Bool) {
+        super.activate(exclusive)
+        let panel = NSColorPanel.shared
+        if originalPanelLevel == nil {
+            originalPanelLevel = panel.level
+            originalPanelBehavior = panel.collectionBehavior
+        }
+        synchronizePanelLevel()
+    }
+
+    func synchronizePanelLevel() {
+        guard isActive, let window else { return }
+        let panel = NSColorPanel.shared
+        panel.level = NSWindow.Level(rawValue: max(NSWindow.Level.floating.rawValue, window.level.rawValue + 1))
+        panel.collectionBehavior = window.collectionBehavior.union(.fullScreenAuxiliary)
+    }
+
+    override func deactivate() {
+        super.deactivate()
+        let panel = NSColorPanel.shared
+        if let originalPanelLevel { panel.level = originalPanelLevel }
+        if let originalPanelBehavior { panel.collectionBehavior = originalPanelBehavior }
+        originalPanelLevel = nil
+        originalPanelBehavior = nil
+    }
+}

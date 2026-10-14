@@ -4,6 +4,9 @@
 /releases/
 /bin/
 /obj/
+/macos/.build/
+/macos/build/
+/macos/.swiftpm/
 /.vs/
 
 # Personal settings and runtime output
