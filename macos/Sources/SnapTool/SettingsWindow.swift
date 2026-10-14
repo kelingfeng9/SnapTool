@@ -86,83 +86,90 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private func buildInterface(in content: NSView) {
         settingsTrace("build interface begin")
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 15
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24), stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20)])
-
+        // This is a fixed-size native utility window. Manual frames avoid building
+        // constraints between controls before they share a view hierarchy.
         let heading = NSTextField(labelWithString: "快捷键与截图偏好")
         heading.font = .boldSystemFont(ofSize: 17)
-        stack.addArrangedSubview(heading)
+        heading.frame = NSRect(x: 24, y: 424, width: 492, height: 24)
+        content.addSubview(heading)
+        addLabel("截图快捷键", frame: NSRect(x: 24, y: 382, width: 80, height: 24), to: content)
         shortcutField.placeholderString = "Ctrl+Option+A"
         shortcutField.identifier = NSUserInterfaceItemIdentifier("settings.shortcut")
         shortcutField.setAccessibilityLabel("全局截图快捷键")
-        shortcutField.widthAnchor.constraint(equalToConstant: 240).isActive = true
+        shortcutField.frame = NSRect(x: 110, y: 380, width: 240, height: 28)
+        content.addSubview(shortcutField)
         recordButton.target = self
         recordButton.action = #selector(toggleRecording)
         recordButton.identifier = NSUserInterfaceItemIdentifier("settings.record")
-        let shortcutRow = NSStackView(views: [NSTextField(labelWithString: "截图快捷键"), shortcutField, recordButton])
-        shortcutRow.spacing = 10
-        stack.addArrangedSubview(shortcutRow)
+        recordButton.frame = NSRect(x: 366, y: 380, width: 80, height: 28)
+        content.addSubview(recordButton)
         let hint = NSTextField(wrappingLabelWithString: "可直接输入组合键，或点击录制。保存成功后新键立即生效；发生冲突时保留原键。至少包含 ⌃ / ⌥ / ⌘ 之一。")
         hint.textColor = .secondaryLabelColor
         hint.font = .systemFont(ofSize: 12)
         hint.maximumNumberOfLines = 3
-        hint.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        stack.addArrangedSubview(hint)
+        hint.frame = NSRect(x: 24, y: 326, width: 492, height: 44)
+        content.addSubview(hint)
 
         settingsTrace("OCR supported languages begin")
         let supported = (try? OCRService.supportedLanguages()) ?? ["zh-Hans", "zh-Hant", "en-US"]
         settingsTrace("OCR supported languages end")
         let locale = Locale(identifier: "zh-Hans")
-        languageChoices += supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
+        languageChoices = [("自动识别", [])] + supported.map { (locale.localizedString(forIdentifier: $0) ?? $0, [$0]) }
+        languagePopup.removeAllItems()
         languageChoices.forEach { languagePopup.addItem(withTitle: $0.0) }
-        languagePopup.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        addLabel("识别语言", frame: NSRect(x: 24, y: 283, width: 80, height: 24), to: content)
+        languagePopup.frame = NSRect(x: 110, y: 282, width: 292, height: 28)
         languagePopup.target = self
         languagePopup.action = #selector(markPendingChanges)
-        let languageRow = NSStackView(views: [NSTextField(labelWithString: "文字识别语言"), languagePopup])
-        languageRow.spacing = 18
-        stack.addArrangedSubview(languageRow)
+        content.addSubview(languagePopup)
         recognizePinned.target = self
         recognizePinned.action = #selector(markPendingChanges)
-        stack.addArrangedSubview(recognizePinned)
+        recognizePinned.frame = NSRect(x: 24, y: 246, width: 492, height: 24)
+        content.addSubview(recognizePinned)
 
         settingsTrace("color well layout begin")
-        colorWell.widthAnchor.constraint(equalToConstant: 50).isActive = true
-        colorWell.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        addLabel("默认颜色", frame: NSRect(x: 24, y: 208, width: 75, height: 24), to: content)
+        colorWell.frame = NSRect(x: 105, y: 204, width: 48, height: 28)
         colorWell.target = self
         colorWell.action = #selector(markPendingChanges)
-        widthSlider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        content.addSubview(colorWell)
+        addLabel("默认线宽", frame: NSRect(x: 170, y: 208, width: 75, height: 24), to: content)
+        widthSlider.frame = NSRect(x: 245, y: 204, width: 200, height: 28)
         widthSlider.numberOfTickMarks = 24
         widthSlider.allowsTickMarkValuesOnly = true
         widthSlider.target = self
         widthSlider.action = #selector(widthChanged)
-        let styleRow = NSStackView(views: [NSTextField(labelWithString: "默认标注"), colorWell, widthSlider, widthLabel])
-        styleRow.spacing = 12
-        stack.addArrangedSubview(styleRow)
+        content.addSubview(widthSlider)
+        widthLabel.frame = NSRect(x: 454, y: 208, width: 55, height: 24)
+        content.addSubview(widthLabel)
         settingsTrace("color well layout end")
 
         loginToggle.target = self
         loginToggle.action = #selector(loginChanged)
+        loginToggle.frame = NSRect(x: 24, y: 164, width: 240, height: 24)
+        content.addSubview(loginToggle)
         let loginSettings = NSButton(title: "系统登录项…", target: self, action: #selector(openLoginSettings))
-        let loginRow = NSStackView(views: [loginToggle, loginSettings])
-        loginRow.spacing = 18
-        stack.addArrangedSubview(loginRow)
+        loginSettings.frame = NSRect(x: 290, y: 160, width: 170, height: 28)
+        content.addSubview(loginSettings)
         statusLabel.font = .systemFont(ofSize: 12)
         statusLabel.identifier = NSUserInterfaceItemIdentifier("settings.status")
         statusLabel.maximumNumberOfLines = 3
         statusLabel.textColor = .secondaryLabelColor
-        statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        statusLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: 34).isActive = true
-        stack.addArrangedSubview(statusLabel)
+        statusLabel.frame = NSRect(x: 24, y: 82, width: 492, height: 64)
+        content.addSubview(statusLabel)
         let save = NSButton(title: "保存设置", target: self, action: #selector(saveSettings))
         save.identifier = NSUserInterfaceItemIdentifier("settings.save")
         save.keyEquivalent = "\r"
-        stack.addArrangedSubview(save)
+        save.frame = NSRect(x: 360, y: 30, width: 156, height: 32)
+        content.addSubview(save)
         settingsTrace("build interface complete")
+    }
+
+    private func addLabel(_ title: String, frame: NSRect, to content: NSView) {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 13)
+        label.frame = frame
+        content.addSubview(label)
     }
 
     private func loadValues() {
