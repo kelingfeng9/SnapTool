@@ -39,6 +39,16 @@ final class SettingsWindowTests: XCTestCase {
         return try XCTUnwrap(descendants(of: content).first { $0.identifier?.rawValue == identifier } as? T)
     }
 
+    @MainActor
+    private func waitForNativeWindowState(_ condition: () -> Bool) async throws -> Bool {
+        for _ in 0..<40 {
+            if condition() { return true }
+            // Yield the main actor while AppKit and WindowServer complete an animation.
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return condition()
+    }
+
     // Async XCTest entry points retain the correct concurrency ABI. Each complete
     // test runs on MainActor, rather than hopping through nested MainActor.run closures.
     @MainActor
@@ -98,11 +108,12 @@ final class SettingsWindowTests: XCTestCase {
         field.stringValue = "Cmd+Shift+S"
         XCTAssertTrue(window.styleMask.contains(.miniaturizable), "This native test window must support miniaturization.")
         window.miniaturize(nil)
-        // AppKit's minimize animation completes after this call returns. Yield the
-        // main actor so the native run loop can finish before checking its state.
-        try await Task.sleep(nanoseconds: 850_000_000)
+        let minimized = try await waitForNativeWindowState { window.isMiniaturized }
+        XCTAssertTrue(minimized, "The native window did not finish minimizing within two seconds.")
         XCTAssertTrue(window.isMiniaturized)
         controller.showWindow(nil)
+        let restored = try await waitForNativeWindowState { !window.isMiniaturized && window.isVisible }
+        XCTAssertTrue(restored, "The native window did not finish restoring within two seconds.")
         XCTAssertFalse(window.isMiniaturized)
         XCTAssertTrue(window.isVisible)
         XCTAssertEqual(field.stringValue, "Cmd+Shift+S")
