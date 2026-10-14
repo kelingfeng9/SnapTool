@@ -2,11 +2,11 @@
 
 SnapTool 的原生 macOS 菜单栏版本，面向 **Apple 芯片、macOS 14 及更新版本**。使用 AppKit、ScreenCaptureKit、CoreGraphics 和 Vision；不安装额外运行时，不引入第三方依赖。启动后常驻菜单栏，通过快捷键调取截图。
 
-**当前为 1.0.0 首版源码，首次 macOS CI 编译与测试待验证。** Windows 上的编译结果不能证明 Mac 版可用。后续请以本仓库 [macOS 工作流](https://github.com/kelingfeng9/SnapTool/actions/workflows/macos.yml) 的实际结果为准；CI 验证编译、核心单元测试、应用打包和无截图权限的启动，屏幕授权、多显示器与贴图交互仍需要真实 Mac 验证。
+**当前为 1.0.0 开发预览版。** 每次发布包的验证记录见 [macOS 工作流](https://github.com/kelingfeng9/SnapTool/actions/workflows/macos.yml) 及对应 Release；CI 验证编译、核心单元测试、应用打包和无截图权限的启动。屏幕授权、多显示器与贴图交互仍需要真实 Mac 验证，不能由编译和单元测试代替。
 
 ## 安装与首次启动
 
-1. 在成功的 macOS 工作流页面下载 `SnapTool-macOS-arm64-…` 构建产物。解压 GitHub 的外层压缩包后，再解压里面的 `SnapTool-macOS-1.0.0-arm64.zip`。
+1. 在 [Mac 预览版 Release](https://github.com/kelingfeng9/SnapTool/releases/tag/mac-v1.0.0-preview.1) 下载 `SnapTool-macOS-1.0.0-arm64.zip` 并解压。也可以在成功的 macOS 工作流页面下载 `SnapTool-macOS-arm64-…` 构建产物，再解压里面的安装 ZIP。
 2. 将 `SnapTool.app` 拖入 Mac 的“应用程序”文件夹，打开应用。菜单栏会出现取景框图标；应用默认不显示 Dock 图标。
 3. 按 **Control + Option + A（⌃⌥A）**，或点击菜单栏图标中的“开始截图”。首次截图时，按系统提示允许 SnapTool 读取屏幕。
 4. 如系统要求手动授权，进入“系统设置 → 隐私与安全性 → 屏幕录制”（较新 macOS 中名为“屏幕与系统音频录制”），开启 SnapTool，并按提示重新打开应用。

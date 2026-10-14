@@ -27,6 +27,18 @@ final class HotKeyShortcutTests: XCTestCase {
         XCTAssertEqual(try HotKeyShortcut.parse("Ctrl+Home").keyCode, 115)
     }
 
+    func testAllTwentyFunctionKeysAreAvailableAndExtendedKeysHaveCorrectCodes() throws {
+        for number in 1...20 {
+            XCTAssertEqual(try HotKeyShortcut.parse("Ctrl+F\(number)").displayName, "⌃F\(number)")
+        }
+        let extended: [(String, UInt32)] = [("F13", 105), ("F14", 107), ("F15", 113), ("F16", 106)]
+        for (name, code) in extended {
+            let shortcut = try HotKeyShortcut.parse("Option+\(name)")
+            XCTAssertEqual(shortcut.keyCode, code)
+            XCTAssertEqual(try HotKeyShortcut.parse(shortcut.displayName), shortcut)
+        }
+    }
+
     func testMalformedAndUnmodifiedShortcutsAreRejected() {
         for text in ["A", "Shift+A", "Ctrl++A", "Ctrl+", "Ctrl+Ctrl+A", "Meta+A", "Ctrl+Esc", "Ctrl+F21", "Ctrl+A+B"] {
             XCTAssertThrowsError(try HotKeyShortcut.parse(text), text)

@@ -135,6 +135,7 @@ enum OutputService {
         var bitmapType: NSBitmapImageRep.FileType { [.png, .jpeg, .bmp][rawValue] }
     }
 
+    @MainActor
     private final class SaveFormatAccessory: NSObject {
         let panel: NSSavePanel
         let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 190, height: 28), pullsDown: false)

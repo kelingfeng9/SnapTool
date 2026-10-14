@@ -105,9 +105,12 @@ enum CaptureService {
 
     private static func windowTargets(content: SCShareableContent, desktop: NSRect,
                                       primaryTop: CGFloat, excluding pid: pid_t) -> [WindowTarget] {
+        let pinIDs = PinWindow.activeWindowIDs
         let candidates = Dictionary(uniqueKeysWithValues: content.windows.compactMap { window -> (CGWindowID, SCWindow)? in
-            guard window.isOnScreen, window.owningApplication?.processID != pid,
-                  window.windowLayer == 0, window.frame.width >= 20, window.frame.height >= 20 else { return nil }
+            let isPin = pinIDs.contains(window.windowID)
+            guard window.isOnScreen, window.owningApplication?.processID != pid || isPin,
+                  window.windowLayer == 0 || isPin,
+                  window.frame.width >= 20, window.frame.height >= 20 else { return nil }
             return (window.windowID, window)
         })
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
@@ -123,7 +126,8 @@ enum CaptureService {
                               y: window.frame.minY + desktop.maxY - primaryTop,
                               width: window.frame.width, height: window.frame.height).intersection(bounds)
             guard !rect.isNull, rect.width >= 20, rect.height >= 20 else { continue }
-            let title = window.title?.isEmpty == false ? window.title! : (window.owningApplication?.applicationName ?? "窗口")
+            let title = pinIDs.contains(window.windowID) ? "SnapTool 贴图"
+                : (window.title?.isEmpty == false ? window.title! : (window.owningApplication?.applicationName ?? "窗口"))
             result.append(WindowTarget(id: window.windowID, rect: rect, title: title))
         }
         return result

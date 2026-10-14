@@ -180,15 +180,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer { self.capturing = false }
             do {
                 let captured = try await CaptureService.capture()
-                var windows = captured.windows
-                if self.preferences.recognizePinnedWindows {
-                    for (id, frame) in PinWindow.activeFrames {
-                        let rect = CGRect(x: frame.minX - captured.frame.minX,
-                                          y: captured.frame.maxY - frame.maxY,
-                                          width: frame.width, height: frame.height)
-                        windows.insert(WindowTarget(id: id, rect: rect, title: "SnapTool 贴图"), at: 0)
-                    }
-                }
+                let pinIDs = PinWindow.activeWindowIDs
+                let windows = self.preferences.recognizePinnedWindows ? captured.windows
+                    : captured.windows.filter { !pinIDs.contains($0.id) }
                 let capture = DesktopCapture(image: captured.image, frame: captured.frame, scale: captured.scale, windows: windows)
                 let window = CaptureWindow(capture: capture, preferences: self.preferences)
                 window.canvas.onClose = { [weak self] in self?.finishCapture() }
@@ -214,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         captureWindow?.close()
         captureWindow = nil
         if let window = settings?.window { configureAuxiliaryWindow(window) }
+        settings?.synchronizeColorPanelLevel()
         textWindows.forEach(configureAuxiliaryWindow)
         lastFrontApplication?.activate(options: [])
     }
@@ -269,11 +264,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textWindows.append(window)
         let windowID = ObjectIdentifier(window)
         textWindowObservers[windowID] = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self, weak window] _ in
-            guard let window else { return }
-            guard let self else { return }
-            self.textWindows.removeAll { $0 === window }
-            if let token = self.textWindowObservers.removeValue(forKey: windowID) { NotificationCenter.default.removeObserver(token) }
-            self.rebuildMenu()
+            // NotificationCenter's explicit main queue provides the executor guarantee here.
+            MainActor.assumeIsolated {
+                guard let window, let self else { return }
+                self.textWindows.removeAll { $0 === window }
+                if let token = self.textWindowObservers.removeValue(forKey: windowID) { NotificationCenter.default.removeObserver(token) }
+                self.rebuildMenu()
+            }
         }
         configureAuxiliaryWindow(window)
         window.center()

@@ -81,7 +81,8 @@ struct HotKeyShortcut: Codable, Equatable {
         32:"U", 33:"[", 34:"I", 35:"P", 36:"↩", 37:"L", 38:"J", 39:"'", 40:"K", 41:";",
         42:"\\", 43:",", 44:"/", 45:"N", 46:"M", 47:".", 48:"⇥", 49:"空格", 50:"`", 51:"⌫",
         64:"F17", 79:"F18", 80:"F19", 90:"F20", 96:"F5", 97:"F6", 98:"F7", 99:"F3",
-        100:"F8", 101:"F9", 103:"F11", 109:"F10", 111:"F12", 115:"Home", 116:"PageUp",
+        100:"F8", 101:"F9", 103:"F11", 105:"F13", 106:"F16", 107:"F14", 109:"F10",
+        111:"F12", 113:"F15", 115:"Home", 116:"PageUp",
         117:"⌦", 118:"F4", 119:"End", 120:"F2", 121:"PageDown", 122:"F1", 123:"←",
         124:"→", 125:"↓", 126:"↑"
     ]
@@ -154,7 +155,7 @@ final class HotKeyManager {
             guard let event = event, let pointer = pointer else { return OSStatus(eventNotHandledErr) }
             let manager = Unmanaged<HotKeyManager>.fromOpaque(pointer).takeUnretainedValue()
             var id = EventHotKeyID()
-            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, UInt32(MemoryLayout<EventHotKeyID>.size), nil, &id)
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
             guard status == noErr, id.signature == HotKeyManager.signature, id.id == manager.currentID else { return OSStatus(eventNotHandledErr) }
             if manager.isSuspended {
                 if let shortcut = manager.shortcut { manager.onSuspendedTrigger?(shortcut) }
