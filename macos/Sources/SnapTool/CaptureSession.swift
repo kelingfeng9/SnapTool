@@ -61,8 +61,12 @@ final class CaptureSession {
                               width: geometry.bounds.width, height: geometry.bounds.height)
         next.viewport.addSubview(canvas)
         canvas.activeViewport = next.viewport.desktopViewport
-        next.makeKeyAndOrderFront(nil)
-        next.makeFirstResponder(canvas)
+        // Hovering another display must not take keyboard focus from settings,
+        // an OCR result or an open text editor. A pointer press explicitly activates it.
+        if commitEditing || NSApp.keyWindow is CaptureWindow || NSApp.keyWindow == nil {
+            next.makeKeyAndOrderFront(nil)
+            next.makeFirstResponder(canvas)
+        }
         windows.forEach { $0.viewport.needsDisplay = true }
     }
 

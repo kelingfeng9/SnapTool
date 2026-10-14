@@ -182,6 +182,49 @@ final class CaptureSessionTests: XCTestCase {
         }
     }
 
+    func testNumberSizeShortcutAffectsNewAndSelectedAnnotationsAndUndoRestoresSize() async throws {
+        try await MainActor.run {
+            try withSession { session, _, _ in
+                let right = session.windows[1]
+                session.canvas.loadDocumentationExample(selection: CGRect(x: 500, y: 150, width: 300, height: 200))
+                session.activate(at: CGPoint(x: 700, y: 200))
+                let numberTool = try XCTUnwrap(descendants(of: session.canvas).compactMap { $0 as? NSButton }
+                    .first { $0.title == "序号" })
+                numberTool.performClick(nil)
+                right.viewport.keyDown(with: try key("]", code: 30, window: right))
+                let point = CGPoint(x: 700, y: 200)
+                right.viewport.mouseDown(with: try mouse(.leftMouseDown, desktopPoint: point,
+                                                        window: right, geometry: session.geometry, time: 30))
+                right.viewport.mouseUp(with: try mouse(.leftMouseUp, desktopPoint: point,
+                                                      window: right, geometry: session.geometry, time: 31))
+                let created = try XCTUnwrap(session.canvas.annotations.first)
+                XCTAssertEqual(created.tool, .number)
+                XCTAssertEqual(created.fontSize, 26, "The number shortcut must change its visible font/radius, not unused stroke width")
+                XCTAssertEqual(created.number, 1)
+                right.viewport.keyDown(with: try key("z", code: 6, window: right, modifiers: .command))
+                XCTAssertTrue(session.canvas.annotations.isEmpty)
+                right.viewport.keyDown(with: try key("z", code: 6, window: right, modifiers: [.command, .shift]))
+                XCTAssertEqual(session.canvas.annotations, [created])
+
+                right.viewport.keyDown(with: try key("0", code: 29, window: right))
+                right.viewport.mouseDown(with: try mouse(.leftMouseDown, desktopPoint: point,
+                                                        window: right, geometry: session.geometry, time: 32))
+                right.viewport.mouseUp(with: try mouse(.leftMouseUp, desktopPoint: point,
+                                                      window: right, geometry: session.geometry, time: 33))
+                right.viewport.keyDown(with: try key("]", code: 30, window: right))
+                let enlarged = try XCTUnwrap(session.canvas.annotations.first)
+                XCTAssertEqual(enlarged.id, created.id)
+                XCTAssertEqual(enlarged.fontSize, 28)
+                XCTAssertGreaterThan(AnnotationGeometry.bounds(of: enlarged).width,
+                                     AnnotationGeometry.bounds(of: created).width)
+                right.viewport.keyDown(with: try key("z", code: 6, window: right, modifiers: .command))
+                XCTAssertEqual(session.canvas.annotations, [created])
+                right.viewport.keyDown(with: try key("y", code: 16, window: right, modifiers: .command))
+                XCTAssertEqual(session.canvas.annotations, [enlarged])
+            }
+        }
+    }
+
     func testDirtyRectAndFullInvalidationNotifyInactiveViewport() async throws {
         try await MainActor.run {
             try withSession { session, _, _ in

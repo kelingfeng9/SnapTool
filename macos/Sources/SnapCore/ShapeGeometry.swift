@@ -79,7 +79,11 @@ public enum ShapeGeometry {
         let anchor = CGPoint(x: clamp(start.x, bounds.minX, bounds.maxX),
                              y: clamp(start.y, bounds.minY, bounds.maxY))
         guard shape == .circle || constrain else {
-            return normalized(start: anchor, end: end).intersection(bounds)
+            let boundedEnd = CGPoint(x: clamp(end.x, bounds.minX, bounds.maxX),
+                                     y: clamp(end.y, bounds.minY, bounds.maxY))
+            // Preserve an ordinary zero-sized rectangle for a click at an
+            // edge; CGRect.intersection can instead produce CGRect.null.
+            return normalized(start: anchor, end: boundedEnd)
         }
         let dx = end.x - anchor.x, dy = end.y - anchor.y
         let sx: CGFloat = dx < 0 ? -1 : 1

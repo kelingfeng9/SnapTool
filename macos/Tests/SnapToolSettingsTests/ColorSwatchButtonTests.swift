@@ -75,18 +75,62 @@ final class ColorSwatchButtonTests: XCTestCase {
     @MainActor
     func testButtonStateInvalidatesDisplayAndExposesColorNameAndSelection() async throws {
         _ = NSApplication.shared
-        let button = ColorSwatchButton(color: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1),
-                                      name: "红色", target: nil, action: Selector("selectColor:"))
-        XCTAssertEqual(button.frame.size, NSSize(width: 26, height: 28))
-        XCTAssertEqual(button.accessibilityLabel(), "标注颜色：红色")
-        XCTAssertEqual(button.accessibilityValue() as? String, "未选中")
-        button.needsDisplay = false
-        button.state = .on
-        XCTAssertTrue(button.needsDisplay)
-        XCTAssertEqual(button.accessibilityValue() as? String, "已选中")
-        button.needsDisplay = false
-        button.state = .off
-        XCTAssertTrue(button.needsDisplay)
-        XCTAssertEqual(button.accessibilityValue() as? String, "未选中")
+        try autoreleasepool {
+            let action = ColorSwatchActionProbe()
+            let button = ColorSwatchButton(color: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1),
+                                          name: "红色", target: action,
+                                          action: #selector(ColorSwatchActionProbe.chooseColor(_:)))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 40, height: 42),
+                                  styleMask: .borderless, backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView?.addSubview(button)
+            window.orderFront(nil)
+            defer { window.orderOut(nil); window.close() }
+            XCTAssertTrue(window.isVisible)
+            XCTAssertTrue(button.window === window)
+            XCTAssertEqual(button.frame.size, NSSize(width: 26, height: 28))
+            XCTAssertEqual(button.accessibilityLabel(), "标注颜色：红色")
+            XCTAssertEqual(button.accessibilityValue() as? String, "未选中")
+
+            let before = try paintedRingColor(of: button, in: window)
+            button.state = .on
+            XCTAssertEqual(button.accessibilityValue() as? String, "已选中")
+            let selected = try paintedRingColor(of: button, in: window)
+            XCTAssertGreaterThan(selected.blueComponent, selected.redComponent + 0.4)
+            XCTAssertGreaterThan(selected.alphaComponent, 0.95)
+            XCTAssertTrue(abs(selected.blueComponent - before.blueComponent) > 0.2
+                          || abs(selected.alphaComponent - before.alphaComponent) > 0.2)
+
+            button.state = .off
+            XCTAssertEqual(button.accessibilityValue() as? String, "未选中")
+            let restored = try paintedRingColor(of: button, in: window)
+            XCTAssertEqual(restored.redComponent, before.redComponent, accuracy: 0.02)
+            XCTAssertEqual(restored.blueComponent, before.blueComponent, accuracy: 0.02)
+            XCTAssertEqual(restored.alphaComponent, before.alphaComponent, accuracy: 0.02)
+
+            button.performClick(nil)
+            XCTAssertEqual(action.count, 1)
+            XCTAssertEqual(button.state, .on)
+            XCTAssertEqual(button.accessibilityValue() as? String, "已选中")
+            let clicked = try paintedRingColor(of: button, in: window)
+            XCTAssertGreaterThan(clicked.blueComponent, clicked.redComponent + 0.4)
+        }
     }
+
+    @MainActor
+    private func paintedRingColor(of button: ColorSwatchButton, in window: NSWindow) throws -> NSColor {
+        window.displayIfNeeded()
+        let image = try XCTUnwrap(button.bitmapImageRepForCachingDisplay(in: button.bounds))
+        // Paint through the real NSButton.draw path, including its current AppKit state.
+        button.cacheDisplay(in: button.bounds, to: image)
+        let x = min(image.pixelsWide - 1, Int(1.5 * CGFloat(image.pixelsWide) / button.bounds.width))
+        let y = min(image.pixelsHigh - 1, Int(14 * CGFloat(image.pixelsHigh) / button.bounds.height))
+        return try XCTUnwrap(image.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+    }
+}
+
+@MainActor
+private final class ColorSwatchActionProbe: NSObject {
+    private(set) var count = 0
+    @objc func chooseColor(_ sender: Any?) { count += 1 }
 }

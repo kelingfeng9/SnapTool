@@ -166,9 +166,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller.onChanged = { [weak self] in self?.rebuildMenu() }
             settings = controller
         }
+        if let parent = captureWindow?.activeWindow, let window = settings?.window {
+            window.level = NSWindow.Level(rawValue: parent.level.rawValue + 1)
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        }
+        settings?.showWindow(nil)
         if let window = settings?.window { configureAuxiliaryWindow(window) }
         settings?.synchronizeColorPanelLevel()
-        settings?.showWindow(nil)
         settings?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

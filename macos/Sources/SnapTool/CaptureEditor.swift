@@ -127,7 +127,7 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         background = NSImage(cgImage: capture.image, size: capture.frame.size)
         renderer = AnnotationRenderer(desktop: capture.image, pixelScale: capture.scale)
         let nsColor = preferences.defaultColor.usingColorSpace(.sRGB) ?? .systemRed
-        color = RGBAColor(red: nsColor.redComponent, green: nsColor.greenComponent, blue: nsColor.blueComponent)
+        color = RGBAColor(red: nsColor.redComponent, green: nsColor.greenComponent, blue: nsColor.blueComponent, alpha: nsColor.alphaComponent)
         lineWidth = preferences.defaultLineWidth
         super.init(frame: NSRect(origin: .zero, size: capture.frame.size))
         clipsToBounds = true
@@ -595,15 +595,16 @@ final class CaptureCanvas: NSView, NSTextFieldDelegate {
         pruneCaches(); needsDisplay = true; window?.makeFirstResponder(self)
     }
     private func changeSize(_ delta: CGFloat) {
+        let activeTool = selected?.tool ?? tool
         if var mark = selected {
-            if mark.tool == .text { mark.fontSize = min(96, max(8, mark.fontSize + delta * 2)) }
+            if mark.tool == .text || mark.tool == .number { mark.fontSize = min(96, max(8, mark.fontSize + delta * 2)) }
             else if mark.tool == .mosaic { mark.blockSize = min(64, max(2, mark.blockSize + Int(delta))) }
             else { mark.width = min(24, max(1, mark.width + delta)) }
             store.replace(mark)
-        } else if tool == .text { fontSize = min(96, max(8, fontSize + delta * 2)) }
+        } else if tool == .text || tool == .number { fontSize = min(96, max(8, fontSize + delta * 2)) }
         else if tool == .mosaic { mosaicBlock = min(64, max(2, mosaicBlock + Int(delta))) }
         else { lineWidth = min(24, max(1, lineWidth + delta)); preferences.defaultLineWidth = lineWidth }
-        pruneCaches(); showToast("\(tool == .text ? "字号" : (tool == .mosaic ? "马赛克粒度" : "线宽"))已调整")
+        pruneCaches(); showToast("\((activeTool == .text || activeTool == .number) ? "字号" : (activeTool == .mosaic ? "马赛克粒度" : "线宽"))已调整")
     }
     override func scrollWheel(with event: NSEvent) {
         guard hasSelection, event.scrollingDeltaY != 0 else { return }
